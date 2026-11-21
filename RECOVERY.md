@@ -9,7 +9,7 @@ História commitov sa nezachovala – toto je nový počiatočný commit.
 - Binárne súbory: obrázky (webp/png), zvuky (wav), APK súbory, ZIP archívy.
 - Jazykové súbory okrem angličtiny a slovenčiny (pôvodne 26 jazykov v `locale/`).
   Testy, ktoré očakávajú 26 jazykov, preto zlyhajú, kým sa nedoplnia.
-- Pribalená knižnica `jssip.min.js` (interkom). `sendspin.js` bol obnovený z APK 0.3.0.
+- ~~Knižnica interkomu~~ `jssip.min.js` bola znova zostavená z npm (JsSIP 3.10.1, esbuild) workflowom `Restore JsSIP bundle`; `sendspin.js` bol obnovený z APK 0.3.0.
 - Podpisový kľúč APK (keystore) a súkromný licenčný kľúč – tieto nikdy neboli v Gite.
 
 ## Čo bolo pregenerované
