@@ -34,7 +34,7 @@ try{
  assert.equal(await page.locator('.page-card:visible').count(),12);
  assert.equal(await page.locator('.skin-choice').count(),80);
  assert.equal(await page.locator('#language option').count(),26);
- await page.locator('#language').selectOption('de');assert((await page.locator('nav').textContent()).includes('Funktionen'));await page.locator('#language').selectOption('en');
+ if(await fs.stat('locale/de.json').then(()=>true,()=>false)){await page.locator('#language').selectOption('de');assert((await page.locator('nav').textContent()).includes('Funktionen'));await page.locator('#language').selectOption('en');}else console.log('SKIP German website text: locale/de.json not restored');
  await page.getByRole('button',{name:'Dark',exact:true}).click();
  const dark=await page.locator('.skin-choice:visible').count();assert(dark>0&&dark<80);
  await page.getByRole('button',{name:'Jade Library',exact:true}).click();

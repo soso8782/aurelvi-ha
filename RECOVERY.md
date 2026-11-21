@@ -20,3 +20,14 @@ História commitov sa nezachovala – toto je nový počiatočný commit.
 - `android/examples/*.json` a `THIRD_PARTY_NOTICES.txt` boli zostavené zo zachovaných zdrojov.
 
 Všetky odkazy na pôvodný účet `sonics007` (zdroj aktualizácií, workflowy, README, web, manifest, LICENSE) boli prepísané na `soso8782`.
+
+## Náhrady doplnené po obnove
+
+- **Textúry materiálov** (`materials/*.webp`): pôvodné fotografické skeny chýbajú, nahradili ich
+  procedurálne vygenerované textúry (`aurelvi-ha/tools/generate-placeholder-materials.py`).
+  Pre pôvodný vzhľad nahraď súbory skutočnými skenmi s rovnakými názvami.
+- **Zvuky budíka** (`android/assets/sounds/*.wav`): tri tóny vygenerované pôvodným skriptom
+  `android/tests/generate-alarm-tones.py`, klasické pípanie `alarm_beep.wav` je nová jednoduchá náhrada.
+- **Logo webu a APK README** (`logo.svg`): kópia symbolu `logo-symbol.svg`.
+- **Testy:** kontroly nemeckého textu sa preskočia, kým nie je obnovený `locale/de.json`.
+- **Publikovanie APK:** workflow sa bez súboru v `dist/` ukončí s upozornením namiesto chyby.
