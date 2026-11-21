@@ -23,6 +23,16 @@
     A = null,
     pointerActive = false,
     deferredRender = false;
+  var doorbell = null;
+  var homeButton = document.createElement("button");
+  homeButton.id = "panel-home";
+  homeButton.type = "button";
+  homeButton.hidden = true;
+  $("next").parentNode.insertBefore(homeButton, $("next"));
+  var contextBar = document.createElement("div");
+  contextBar.className = "panel-context";
+  contextBar.hidden = true;
+  $("main").insertBefore(contextBar, $("surface"));
   function read(key, fallback) {
     try {
       return (
@@ -75,6 +85,7 @@
     clock: "M12 7v5l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
     weather: "M7 18a5 5 0 1 1 1-10 6 6 0 0 1 11 3 3.5 3.5 0 0 1-1 7H7Z",
     generic: "M5 5h14v14H5Z",
+    house: "M3 10l9-7 9 7v10H3v-10Zm6 10v-7h6v7",
   };
   function glyph(name) {
     if (window.OpenPanelIcons && window.OpenPanelIcons[name]) {
@@ -87,7 +98,7 @@
       result.setAttribute("aria-hidden", "true");
       return result;
     }
-    var key = /light|bulb|lamp/i.test(name || "")
+    var key = name === "house" ? "house" : /light|bulb|lamp/i.test(name || "")
       ? "light"
       : /fan/i.test(name || "")
         ? "fan"
@@ -114,6 +125,7 @@
     svg.appendChild(path);
     return svg;
   }
+  homeButton.appendChild(glyph("house"));
   function label(node, text) {
     var el = document.createElement("span");
     el.className = "label";
@@ -234,7 +246,12 @@
       tile.behavior === "state"
         ? !!(choice && choice.active)
         : state.on === true;
-    visual(b, on, on && tile.activeMode === "inset");
+    visual(b, !tile.destination && on, !tile.destination && on && tile.activeMode === "inset");
+    if (tile.destination) {
+      b.disabled = pagePosition(tile.destination) < 0;
+      b.addEventListener("click", function () { goToPage(pagePosition(tile.destination)); });
+      return b;
+    }
     gestures(b, tile, function () {
       if (tile.behavior === "state") {
         var choices = tile.states || [],
@@ -455,6 +472,112 @@
     box.appendChild(date);
     surface.appendChild(box);
   }
+  function pagePosition(id) {
+    return config ? config.pages.findIndex(function (page) { return page.id === id; }) : -1;
+  }
+  function homePosition() {
+    var index = pagePosition(config && config.home && config.home.page);
+    return index < 0 ? Number(deviceCfg.defaultPage || 0) : index;
+  }
+  function defaultPosition() {
+    return Number.isInteger(deviceCfg.defaultPage) ? deviceCfg.defaultPage : homePosition();
+  }
+  function activePage() {
+    return doorbell ? doorbell.page : config && config.pages[pageIndex];
+  }
+  function closeDoorbell() {
+    if (!doorbell) return;
+    clearTimeout(doorbell.timer);
+    if (doorbell.sound) doorbell.sound.pause();
+    if (doorbell.restoreSettings) $("settings").hidden = false;
+    var previous = pagePosition(doorbell.returnPage);
+    if (previous >= 0) pageIndex = previous;
+    doorbell = null;
+    wake();
+    render();
+  }
+  function showDoorbell(camera) {
+    var configured = config && config.doorbell && config.doorbell.camera;
+    if (!F || !configured || configured.entity !== camera) return;
+    var muted = doorbell && doorbell.muted;
+    var restoreSettings = (doorbell && doorbell.restoreSettings) || !$("settings").hidden;
+    var returnPage = doorbell ? doorbell.returnPage : config.pages[pageIndex].id;
+    if (doorbell) {
+      clearTimeout(doorbell.timer);
+      if (doorbell.sound) doorbell.sound.pause();
+    }
+    doorbell = {
+      muted: muted,
+      restoreSettings: restoreSettings,
+      returnPage: returnPage,
+      page: {
+        id: "aurelvi-doorbell",
+        title: tr("panel.home.doorbell"),
+        type: "camera",
+        camera: { cameras: [{ entity: camera }], doorbell: true, keepAwake: true },
+      },
+      timer: setTimeout(closeDoorbell, 30000),
+    };
+    $("settings").hidden = true;
+    if (!muted) {
+      doorbell.sound = new Audio("sounds/ding.wav");
+      var playback = doorbell.sound.play();
+      if (playback && playback.catch) playback.catch(function () {});
+    }
+    wake();
+    render();
+  }
+  function renderContext(page) {
+    contextBar.textContent = "";
+    contextBar.hidden = true;
+    $("main").classList.remove("with-panel-context");
+    if (doorbell) {
+      var mute = document.createElement("button");
+      mute.type = "button";
+      mute.textContent = tr("panel.home.mute");
+      mute.disabled = !!doorbell.muted;
+      mute.onclick = function () {
+        doorbell.muted = true;
+        if (doorbell.sound) doorbell.sound.pause();
+        mute.disabled = true;
+      };
+      contextBar.appendChild(mute);
+      var intercom = window.AurelviIntercom;
+      if (intercom && intercom.isReady && intercom.isReady()) {
+        var talk = document.createElement("button");
+        talk.type = "button";
+        talk.textContent = tr("panel.home.talk");
+        talk.onclick = intercom.talk;
+        contextBar.appendChild(talk);
+      }
+      var close = document.createElement("button");
+      close.type = "button";
+      close.textContent = tr("panel.home.dismiss");
+      close.onclick = closeDoorbell;
+      contextBar.appendChild(close);
+    } else if (page && config.home && config.home.page === page.id) {
+      var home = config.home;
+      var summary = [];
+      var shownLights = (home.lights || []).filter(function (entity) {
+        return stateOf({ entity: entity }).available === true;
+      });
+      if (shownLights.length) {
+        var count = shownLights.filter(function (entity) { return stateOf({ entity: entity }).on; }).length;
+        summary.push(tr("panel.home.lights_on", { count: count }));
+      }
+      (home.openings || []).forEach(function (entity) {
+        var state = stateOf({ entity: entity });
+        if (state.available && (state.on || state.value === "open")) {
+          summary.push(tr("panel.home.open", { name: state.friendly_name || entity }));
+        }
+      });
+      if (online && summary.length) contextBar.textContent = summary.join(" · ");
+    }
+    if (contextBar.hasChildNodes()) {
+      contextBar.hidden = false;
+      $("main").classList.add("with-panel-context");
+    }
+  }
   function render() {
     if (pointerActive) {
       deferredRender = true;
@@ -467,10 +590,14 @@
     surface.style.display = "block";
     if (config)
       pageIndex = Math.max(0, Math.min(config.pages.length - 1, pageIndex));
-    $("next").hidden = !config || config.pages.length < 2;
-    $("pages").textContent = config
+    $("next").hidden = !!doorbell || !config || config.pages.length < 2;
+    homeButton.hidden = !!doorbell || !config || config.pages.length < 2 || homePosition() === pageIndex;
+    homeButton.setAttribute("aria-label", tr("common.home"));
+    $("pages").textContent = config && !doorbell
       ? pageIndex + 1 + " / " + config.pages.length
       : "";
+    var page = activePage();
+    renderContext(page);
     if (!config) {
       if(window.AurelviLicence)window.AurelviLicence.setPage("");
       $("title").textContent = "OpenPanel";
@@ -481,11 +608,12 @@
       );
       return;
     }
-    var page = config.pages[pageIndex];
-    if(window.AurelviLicence)window.AurelviLicence.setPage(page.type);
+    if(window.AurelviLicence)window.AurelviLicence.setPage(doorbell ? "" : page.type);
     $("title").textContent = page.title || "OpenPanel";
     if (A && A.renderPage(page, surface)) return;
-    if (page.type === "grid") {
+    if (page.type === "grid" && page.thermostat && F) {
+      F.renderThermostat(page, surface);
+    } else if (page.type === "grid") {
       surface.style.display = "grid";
       surface.style.gridTemplateColumns =
         "repeat(" + page.grid.columns + ",minmax(0,1fr))";
@@ -522,7 +650,7 @@
         }
         node.style.gridColumn = tile.col + " / span " + (tile.colSpan || 1);
         node.style.gridRow = tile.row + " / span " + (tile.rowSpan || 1);
-        if (tile.entity && stateOf(tile).available === false) {
+        if (!tile.destination && tile.entity && stateOf(tile).available === false) {
           if (node.tagName === "BUTTON") node.disabled = true;
           node
             .querySelectorAll("button,input,select")
@@ -648,8 +776,8 @@
         var validated = P.validateConfig(doc);
         config = validated;
         cache("panels", config);
-        if (Number.isInteger(deviceCfg.defaultPage))
-          pageIndex = deviceCfg.defaultPage;
+        if (config.home || Number.isInteger(deviceCfg.defaultPage))
+          pageIndex = defaultPosition();
         if (F) F.onConfig();
         applyDevice(deviceCfg);
         summaryCount = config.pages.length;
@@ -683,6 +811,10 @@
     }
     if (topic.indexOf(prefix + "/cmd/") !== 0 || retained) return;
     var cmd = topic.slice((prefix + "/cmd/").length);
+    if (cmd === "doorbell") {
+      showDoorbell(doc.camera);
+      return;
+    }
     if(window.AurelviLicence){var licenceResult=window.AurelviLicence.command(cmd,doc);if(licenceResult){client.publish(prefix+"/sys/licence",licenceResult,false);return;}}
     if (A && A.onCommand(cmd, doc)) return;
     if (F && F.onCommand(cmd, doc)) return;
@@ -855,12 +987,17 @@
   });
   function pageBy(delta) {
     if (config) {
-      wake();
-      pageIndex =
-        (pageIndex + delta + config.pages.length) % config.pages.length;
-      render();
+      goToPage((pageIndex + delta + config.pages.length) % config.pages.length);
     }
   }
+  function goToPage(index) {
+    if (!config || !config.pages[index]) return;
+    if (doorbell) closeDoorbell();
+    wake();
+    pageIndex = index;
+    render();
+  }
+  homeButton.addEventListener("click", function () { goToPage(homePosition()); });
   $("next").addEventListener("click", function () {
     pageBy(1);
   });
@@ -908,11 +1045,11 @@
     if (client) client.close();
   });
   setInterval(function () {
-    if (!config || !$("settings").hidden) return;
+    if (!config || doorbell || !$("settings").hidden) return;
     if (F) F.tick();
     var idle = (Date.now() - lastTouch) / 1000,
       timeout = Number(deviceCfg.inactivityTimeout || 0),
-      defaultIndex = Number(deviceCfg.defaultPage || 0);
+      defaultIndex = defaultPosition();
     if (
       timeout > 0 &&
       idle > timeout &&
@@ -934,6 +1071,7 @@
       sleeping = true;
       blanked = false;
       if (F) F.stopCamera();
+      renderContext(null);
       $("surface").textContent = "";
       $("surface").style.display = "block";
       clock($("surface"));
@@ -964,9 +1102,7 @@
     states: function () {
       return states;
     },
-    page: function () {
-      return config && config.pages[pageIndex];
-    },
+    page: activePage,
     client: function () {
       return client;
     },
@@ -998,6 +1134,10 @@
   } catch (e) {}
   paintConnection();
   applyDevice(read("device", {}));
+  if (config && config.home) {
+    pageIndex = defaultPosition();
+    render();
+  }
   if (
     location.search.indexOf("demo=1") >= 0 ||
     location.search.indexOf("studio=1") >= 0

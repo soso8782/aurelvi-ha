@@ -215,4 +215,90 @@ class FanSettings(unittest.IsolatedAsyncioTestCase):
  async def test_projection_rejects_arbitrary_topic(self):
   config={'pages':[{'id':'settings','type':'grid','grid':{'columns':1,'rows':1},'tiles':[{'id':'x','type':'switcher','entity':'fan.ceiling','stateAttribute':'preset_mode','stateKey':'arbitrary','row':1,'col':1}]}]}
   with self.assertRaises(ValueError):validate_config(config)
+class PanelFeatures(unittest.IsolatedAsyncioTestCase):
+ asyncSetUp=Integration.asyncSetUp
+
+ async def test_thermostat_targets_confirmed_entity_and_rejects_unknown_mode(self):
+  page = {'id': 'heat', 'type': 'grid', 'grid': {'columns': 1, 'rows': 1}, 'tiles': [],
+          'thermostat': {'entity': 'climate.room'}}
+  self.hub.panels['test']['config']['pages'].append(page)
+  thermostat = State('climate.room', 'heat', temperature=20, current_temperature=18,
+                     min_temp=12, max_temp=22, target_temp_step=.5,
+                     hvac_modes=['off', 'heat'], hvac_action='heating')
+  self.hass.values[thermostat.entity_id] = thermostat
+  self.assertEqual(mirror(thermostat)['hvac_action'], 'heating')
+
+  async def send(action, value, event_id):
+   payload = {'page': page['id'], 'button': 'heat.thermostat', 'action': action,
+              'value': value, 'eventId': event_id}
+   await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/test/event',
+                                               payload=json.dumps(payload), retain=False))
+
+  await send('temperature', 1, 'temperature1')
+  self.assertEqual(self.hass.calls[-1][:3], ('climate', 'set_temperature',
+                                            {'entity_id': 'climate.room', 'temperature': 20.5}))
+  thermostat.attributes['temperature'] = 21.9
+  await send('temperature', 1, 'temperature2')
+  self.assertEqual(self.hass.calls[-1][2]['temperature'], 22)
+  await send('mode', 'off', 'mode1')
+  self.assertEqual(self.hass.calls[-1][:3], ('climate', 'set_hvac_mode',
+                                            {'entity_id': 'climate.room', 'hvac_mode': 'off'}))
+  await send('mode', 'unsupported', 'mode2')
+  self.assertEqual(len(self.hass.calls), 3)
+  self.assertFalse(self.hass.mqtt[-1][1]['ok'])
+  thermostat.attributes.update(target_temp_low=20, target_temp_high=20.2)
+  await send('low', 1, 'low1')
+  self.assertEqual(self.hass.calls[-1][2]['target_temp_low'], 20.2)
+  await send('high', 1, 'high1')
+  self.assertEqual(self.hass.calls[-1][2], {'entity_id': 'climate.room',
+                                          'target_temp_low': 20, 'target_temp_high': 20.7})
+
+ async def test_doorbell_only_rings_selected_panels_on_rising_edge(self):
+  self.hub.panels['other'] = copy.deepcopy(self.hub.panels['test'])
+  self.hub.status['other'] = {'online': True}
+  camera = State('camera.entry', 'idle', access_token='camera-test-token')
+  self.hass.values[camera.entity_id] = camera
+  doorbell = {'entity': 'binary_sensor.bell', 'camera': {'entity': camera.entity_id}}
+  with self.assertRaises(ValueError):
+   await self.hub.configure_doorbell({'test': 0, 'other': 4}, doorbell)
+  self.assertNotIn('doorbell', self.hub.panels['test']['config'])
+  await self.hub.configure_doorbell({'test': 0}, doorbell)
+  self.assertIn(camera.entity_id, self.hub.entities_of('test'))
+  self.hass.mqtt.clear()
+  tasks = []
+  self.hass.async_create_task = lambda coro: tasks.append(asyncio.create_task(coro))
+  def state_changed(old, new):
+   self.hub.state_changed(types.SimpleNamespace(data={'entity_id': 'binary_sensor.bell',
+       'old_state': State('binary_sensor.bell', old), 'new_state': State('binary_sensor.bell', new)}))
+  state_changed('off', 'on')
+  state_changed('on', 'on')
+  await asyncio.gather(*tasks)
+  commands = [(topic, data, flags) for topic, data, flags in self.hass.mqtt if '/cmd/' in topic]
+  self.assertEqual(len(commands), 1)
+  self.assertEqual(commands[0][0], 'aurelvi/panel/test/cmd/doorbell')
+  self.assertEqual(commands[0][1], {'camera': 'camera.entry'})
+  self.assertFalse(commands[0][2]['retain'])
+  await self.hub.configure_doorbell({'test': 1}, None)
+  self.assertNotIn(camera.entity_id, self.hub.entities_of('test'))
+  await self.hub.configure_doorbell({'test': 2}, {**doorbell, 'entity': 'event.bell'})
+  self.hass.mqtt.clear()
+  tasks.clear()
+  self.hub.state_changed(types.SimpleNamespace(data={'entity_id': 'event.bell',
+      'old_state': State('event.bell', '2026-11-21T18:00:00+00:00'),
+      'new_state': State('event.bell', '2026-11-21T18:00:01+00:00')}))
+  await asyncio.gather(*tasks)
+  self.assertEqual(sum(topic.endswith('/cmd/doorbell') for topic, _, _ in self.hass.mqtt), 1)
+
+ async def test_templates_are_independent_of_the_original_page_and_survive_reload(self):
+  page = self.hub.panels['test']['config']['pages'][0]
+  await self.hub.save_template(' Fan controls ', page)
+  page['title'] = 'Updated'
+  snapshot = self.hub.snapshot()['templates'][0]
+  self.assertEqual(snapshot['name'], 'Fan controls')
+  self.assertNotEqual(snapshot['page']['title'], 'Updated')
+  await self.hub.start()
+  self.assertEqual(self.hub.snapshot()['templates'][0], snapshot)
+  await self.hub.remove_template(snapshot['id'])
+  self.assertEqual(self.hub.store.saved['templates'], {})
+
 if __name__=='__main__':unittest.main(verbosity=2)

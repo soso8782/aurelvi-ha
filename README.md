@@ -27,6 +27,15 @@ MQTT must already be configured in Home Assistant. Connect the panel to the same
 
 HACS: add `https://github.com/soso8782/aurelvi-ha` as a custom repository of type **Integration**. This is not a listing in the default HACS catalog.
 
+## Everyday panel controls
+
+- **Home screen** — in Studio, add a Home screen or assign an existing grid as Home. Add favorite devices, scenes or shortcuts to other pages. Select lights or openings for the status summary. Use the house button to return from any page.
+- **Thermostat** — add a Thermostat page and choose a Home Assistant climate entity. The panel displays the current and target temperatures, the reported heating or cooling status, and the modes your device offers.
+- **Doorbell** — in Manage, select a doorbell sensor or event, the entrance camera and the panels to ring. Save, then use **Test on this panel**. The camera closes after 30 seconds or when dismissed. The Talk button appears on panels with a registered SIP intercom and a contact or an incoming call.
+- **Page templates** — use **Save as template** on a page, then open **Page templates** on any panel. Select replacement entities and page links, create a draft and check the preview before saving.
+
+These controls use the Home Assistant integration and the matching Android frontend.
+
 ## Version 0.3.10 — Fan and light settings
 
 **Build room** now keeps every available fan wind preset (natural, breeze, sleep, etc.) alongside percentage speeds. It adds oscillation and linked light effect controls when those capabilities are exposed by Home Assistant. Related switches, selects and numeric entities in the selected room are included: every select option is available, and number settings have a confirmed value plus −/+ controls using the entity's current step and limits.

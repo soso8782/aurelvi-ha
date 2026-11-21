@@ -77,6 +77,12 @@ async def ws_command(hass,connection,msg):
         elif action=='save':result={'revision':await hub.save(pid,data['config'],data.get('device',{}),data['revision'])}
         elif action=='restore':result={'revision':await hub.restore(pid,data['revision'])}
         elif action=='push':await hub.push(pid);result=True
+        elif action=='template_save':await hub.save_template(data['name'],data['page']);result=True
+        elif action=='template_remove':await hub.remove_template(data['id']);result=True
+        elif action=='doorbell_configure':await hub.configure_doorbell(data['revisions'],data['doorbell']);result=True
+        elif action=='doorbell_test':
+            if not await hub.ring_doorbell(pid):raise ValueError(tr('backend.features.doorbell_test_unavailable'))
+            result=True
         elif action=='command':
             name=data.get('name');payload=data.get('payload',{})
             if name not in {'wake','screen','page','info','screenshot','notify_clear','check_update'}:raise ValueError(tr('backend.ws.command_not_allowed'))

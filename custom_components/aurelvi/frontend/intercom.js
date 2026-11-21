@@ -51,5 +51,10 @@ answer.onclick=async function(){if(!session||session.direction!=='incoming'||pen
 hangup.onclick=function(){serial++;pending=false;if(micResolve)micResolve(false);if(session){var old=session;try{old.terminate();}catch(e){}release(old);}nativeCall('intercomAudio',false);message('panel.intercom.call_ended');render();};
 mute.onclick=function(){if(!session||!session.isEstablished())return;muted=!muted;if(muted)session.mute({audio:true});else session.unmute({audio:true});render();};
 function stop(){serial++;registered=false;pending=false;if(micResolve)micResolve(false);var old=ua;ua=null;if(old)try{old.stop();}catch(e){}if(session)release(session);nativeCall('intercomRinging',false);nativeCall('intercomAudio',false);message('panel.intercom.stopped');render();}
-root.addEventListener('beforeunload',stop);root.AurelviIntercom={open:open,close:closePanel,isOpen:function(){return !panel.hidden;},isBusy:function(){return !!session||pending;}};connect();render();
+function talk(){
+  open();
+  if(session&&session.direction==='incoming'&&!session.isEstablished()) answer.click();
+  else if(!session&&config.contacts.length===1) dial(config.contacts[0].id);
+}
+root.addEventListener('beforeunload',stop);root.AurelviIntercom={open:open,close:closePanel,talk:talk,isOpen:function(){return !panel.hidden;},isBusy:function(){return !!session||pending;},isReady:function(){return registered&&(!!session||config.contacts.length>0);}};connect();render();
 })(window);

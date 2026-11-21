@@ -525,6 +525,72 @@
       }));
       box.appendChild(row);document.body.appendChild(box);
     }
+    function renderThermostat(page, surface) {
+      var state = ctx.states()[P.entityKey(page.thermostat.entity)] || {};
+      var card = node("div", "thermostat-page");
+      var controlId = page.id + ".thermostat";
+      var unit = state.unit_of_measurement || state.temperature_unit || "";
+      var disabled = !ctx.online() || state.available !== true;
+      var format = new Intl.NumberFormat(uiLocale(), { maximumFractionDigits: 2 });
+      function reading(value) {
+        return Number.isFinite(value) ? format.format(value) + (unit ? " " + unit : "") : "—";
+      }
+      function label(group, value) {
+        var key = "panel.thermostat." + group + "_" + value;
+        return root.AurelviI18n && root.AurelviI18n.has(key) ? tr(key) : value;
+      }
+      function stepper(caption, value, action, minimum, maximum) {
+        var group = node("div", "thermostat-target");
+        group.appendChild(node("span", "thermostat-caption", caption));
+        var row = node("div", "thermostat-stepper");
+        [-1, 1].forEach(function (delta) {
+          if (delta > 0) row.appendChild(node("strong", "", reading(value)));
+          var change = button(delta < 0 ? "−" : "+", function () {
+            ctx.send(controlId, action, delta);
+          });
+          change.setAttribute("aria-label", tr(delta < 0 ? "panel.thermostat.decrease" : "panel.thermostat.increase", { target: caption }));
+          change.disabled = disabled || !Number.isFinite(value) || !Number.isFinite(minimum) ||
+            !Number.isFinite(maximum) || (delta < 0 ? value <= minimum : value >= maximum);
+          change.dataset.control = controlId;
+          row.appendChild(change);
+        });
+        group.appendChild(row);
+        card.appendChild(group);
+      }
+      card.appendChild(node("span", "thermostat-caption", tr("panel.thermostat.current")));
+      card.appendChild(node("strong", "thermostat-current", reading(state.current_temperature)));
+      if (disabled) card.appendChild(node("p", "thermostat-caption", tr("panel.thermostat.unavailable")));
+      else if (state.hvac_action) card.appendChild(node("p", "thermostat-caption", label("action", state.hvac_action)));
+
+      if (Number.isFinite(state.target_temp_low) && Number.isFinite(state.target_temp_high)) {
+        stepper(tr("panel.thermostat.minimum"), state.target_temp_low, "low", state.min_temp, state.target_temp_high);
+        stepper(tr("panel.thermostat.maximum"), state.target_temp_high, "high", state.target_temp_low, state.max_temp);
+      } else {
+        stepper(tr("panel.thermostat.target"), state.temperature, "temperature", state.min_temp, state.max_temp);
+      }
+      if (Array.isArray(state.hvac_modes) && state.hvac_modes.length) {
+        var mode = node("select", "feature-input thermostat-mode");
+        mode.setAttribute("aria-label", tr("panel.thermostat.mode"));
+        var choose = node("option", "", tr("panel.thermostat.mode"));
+        choose.value = "";
+        choose.disabled = true;
+        mode.appendChild(choose);
+        state.hvac_modes.forEach(function (value) {
+          var option = node("option", "", label("mode", value));
+          option.value = value;
+          mode.appendChild(option);
+        });
+        var confirmed = state.hvac_modes.indexOf(state.value) < 0 ? "" : state.value;
+        mode.value = confirmed;
+        mode.disabled = disabled;
+        mode.onchange = function () {
+          ctx.send(controlId, "mode", mode.value);
+          mode.value = confirmed;
+        };
+        card.appendChild(mode);
+      }
+      surface.appendChild(card);
+    }
     function currentCamera(page) {
       var cameras = (page.camera || {}).cameras || [],
         index = cameraIndex[page.id] || 0;
@@ -574,7 +640,7 @@
         cameraIndex[page.id] = Number(select.value);
         ctx.render();
       });
-      box.appendChild(select);
+      if (!cfg.doorbell) box.appendChild(select);
       var stage = node("div", "camera-stage");
       var image = node("img", "camera-stream");
       image.alt = cam.name || cam.entity;
@@ -593,6 +659,7 @@
       cameraImage = image;
       cameraEntity = cam.entity;
       updateCamera();
+      if (cfg.doorbell) return;
       var pad = node("div", "ptz-pad"),
         directions = [
           ["up", "↑"],
@@ -1798,6 +1865,7 @@
       if (N && N.mediaInfo) media = JSON.parse(N.mediaInfo());
     } catch (e) {}
     return {
+      renderThermostat: renderThermostat,
       beforeRender: function () {
         renderedAlarmPage = null;
         stopCamera();

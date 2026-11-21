@@ -31,6 +31,7 @@ class Hub:
     def __init__(self,hass,entry):
         self.hass=hass;self.entry=entry;self.store=Store(hass,1,DOMAIN+'.studio')
         self.panels={};self.status={};self.timers={};self.settings={};self.latest={};self.logs=[]
+        self.templates = {}
         self.unsubs=[];self.timer_jobs={};self.event_ids={};self.lock=asyncio.Lock();self.closed=False;self.notify_bindings={};self.weather_at={};self.panel_entities={};self.warned={}
     def refresh_entities(self,pid=None):
         """Rebuild the cached set of entities referenced by panel configs."""
@@ -44,6 +45,7 @@ class Hub:
     async def start(self):
         saved=await self.store.async_load() or {}
         self.panels=saved.get('panels',{});self.timers=saved.get('timers',{});self.settings=saved.get('settings',{});self.refresh_entities()
+        self.templates = saved.get('templates', {})
         self.unsubs.append(await mqtt.async_subscribe(self.hass,PREFIX+'/+/avail',self.receive,1))
         self.unsubs.append(await mqtt.async_subscribe(self.hass,PREFIX+'/+/sys/+',self.receive,1))
         self.unsubs.append(await mqtt.async_subscribe(self.hass,PREFIX+'/+/event',self.receive,1))
@@ -64,7 +66,7 @@ class Hub:
         self.timer_jobs.clear()
         await self.persist()
     def _data_to_save(self):
-        return {'panels':self.panels,'timers':self.timers,'settings':self.settings}
+        return {'panels':self.panels,'timers':self.timers,'settings':self.settings,'templates':self.templates}
     async def persist(self):
         """Save immediately (durability matters: user edits, shutdown)."""
         await self.store.async_save(self._data_to_save())
@@ -193,6 +195,55 @@ class Hub:
         if not p.get('history'):raise ValueError(tr('backend.hub.no_previous_config'))
         previous=copy.deepcopy(p['history'][-1])
         return await self.save(pid,previous['config'],previous['device'],expected)
+
+    async def save_template(self, name, page):
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+            raise ValueError(tr('backend.features.template_name'))
+        page = validate_config({'pages': [page]})['pages'][0]
+        template = {'id': secrets.token_hex(8), 'name': name.strip(), 'page': page}
+        async with self.lock:
+            templates = {**self.templates, template['id']: template}
+            if len(templates) > 30 or len(json.dumps(templates)) > 524288:
+                raise ValueError(tr('backend.features.template_limit'))
+            await self.store.async_save({**self._data_to_save(), 'templates': templates})
+            self.templates = templates
+        self.changed()
+
+    async def remove_template(self, template_id):
+        async with self.lock:
+            templates = dict(self.templates)
+            if templates.pop(template_id, None) is None:
+                return
+            await self.store.async_save({**self._data_to_save(), 'templates': templates})
+            self.templates = templates
+        self.changed()
+
+    async def configure_doorbell(self, revisions, doorbell):
+        if not isinstance(revisions, dict) or not revisions:
+            raise ValueError(tr('backend.features.invalid_doorbell'))
+        async with self.lock:
+            updated = {}
+            for pid, revision in revisions.items():
+                panel = self.panels.get(panel_id(pid))
+                if not panel or not panel.get('paired'):
+                    raise ValueError(tr('backend.hub.panel_not_added'))
+                if type(revision) is not int or panel['revision'] != revision:
+                    raise ValueError(tr('backend.hub.config_changed'))
+                config = dict(panel['config'])
+                if doorbell is None:
+                    config.pop('doorbell', None)
+                else:
+                    config['doorbell'] = doorbell
+                history = panel.get('history', []) + [{'config': panel['config'], 'device': panel['device']}]
+                updated[pid] = dict(panel, config=validate_config(config), history=history[-5:],
+                                    revision=revision + 1, configSource='studio')
+            await self.store.async_save({**self._data_to_save(), 'panels': {**self.panels, **updated}})
+            self.panels.update(updated)
+            for pid in updated:
+                self.refresh_entities(pid)
+        for pid in updated:
+            await self.push(pid)
+            self.changed(pid)
     async def push(self,pid):
         p=self.panels[pid]
         if not p.get('paired'):return
@@ -230,6 +281,11 @@ class Hub:
         self.changed(pid)
     async def publish_state(self,pid,entity):
         state=self.hass.states.get(entity);doc=mirror(state)
+        if entity.startswith('climate.') and 'unit_of_measurement' not in doc:
+            units = getattr(getattr(self.hass, 'config', None), 'units', None)
+            unit = doc.get('temperature_unit') or getattr(units, 'temperature_unit', None)
+            if unit:
+                doc['unit_of_measurement'] = unit
         if entity.startswith('camera.') and state:
             token=state.attributes.get('access_token')
             base=self.settings.get('haUrl')
@@ -255,8 +311,30 @@ class Hub:
     @callback
     def state_changed(self,event):
         entity=event.data.get('entity_id')
+        old_state = getattr(event.data.get('old_state'), 'state', None)
+        new_state = getattr(event.data.get('new_state'), 'state', None)
+        ringing = old_state == 'off' and new_state == 'on'
+        if entity and entity.startswith('event.'):
+            unavailable = {None, 'unknown', 'unavailable'}
+            ringing = old_state is not None and old_state != new_state and new_state not in unavailable
         for pid,p in self.panels.items():
-            if p.get('paired') and entity in self.entities_of(pid):self.hass.async_create_task(self.publish_state(pid,entity))
+            if not p.get('paired'):
+                continue
+            if entity in self.entities_of(pid):
+                self.hass.async_create_task(self.publish_state(pid,entity))
+            doorbell = p['config'].get('doorbell')
+            if ringing and doorbell and doorbell['entity'] == entity and self.status.get(pid, {}).get('online'):
+                self.hass.async_create_task(self.ring_doorbell(pid))
+
+    async def ring_doorbell(self, pid):
+        panel = self.panels.get(pid, {})
+        doorbell = panel.get('config', {}).get('doorbell')
+        if not panel.get('paired') or not doorbell or not self.status.get(pid, {}).get('online') or not mqtt.is_connected(self.hass):
+            return False
+        camera = doorbell['camera']['entity']
+        await self.publish_state(pid, camera)
+        await self.publish(pid, 'cmd/doorbell', {'camera': camera})
+        return True
     async def execute(self,spec):
         for action in actions(spec):
             if action.get('noop') is True:continue
@@ -281,6 +359,7 @@ class Hub:
             if not mqtt.is_connected(self.hass) or not self.status.get(pid,{}).get('online'):raise ValueError(tr('backend.hub.panel_disconnected'))
             if not page:raise ValueError(tr('backend.hub.unknown_page'))
             if page['type']=='fan':await self.fan_event(pid,page,event)
+            elif page['type']=='grid' and page.get('thermostat'):await self.thermostat_event(page,event)
             elif page['type']=='grid':await self.grid_event(pid,page,event)
             elif page['type']=='camera':
                 matched=False
@@ -300,6 +379,41 @@ class Hub:
                 doc={'eventId':eid,'button':button,'ok':False,'message':plain(text,lang)[:180]}
                 if text.startswith('backend.'):doc['messageKey']=text
                 await self.publish(pid,'sys/ack',doc,False)
+    async def thermostat_event(self, page, event):
+        entity = page['thermostat']['entity']
+        state = mirror(self.hass.states.get(entity))
+        action = event.get('action')
+        value = event.get('value')
+        if event.get('button') != page['id'] + '.thermostat' or not state['available'] or not isinstance(action, str):
+            raise ValueError(tr('backend.features.thermostat_unavailable'))
+        if action == 'mode':
+            if not isinstance(value, str) or value not in state.get('hvac_modes', []):
+                raise ValueError(tr('backend.features.thermostat_unavailable'))
+            await self.call('climate.set_hvac_mode', entity, {'hvac_mode': value})
+            return
+        target = {'temperature': 'temperature', 'low': 'target_temp_low', 'high': 'target_temp_high'}.get(action)
+        if target is None or type(value) is not int or value not in (-1, 1):
+            raise ValueError(tr('backend.features.thermostat_unavailable'))
+        current = state.get(target)
+        low, high = state.get('min_temp'), state.get('max_temp')
+        step = state.get('target_temp_step', 1)
+        if None in (current, low, high) or step <= 0 or low > high:
+            raise ValueError(tr('backend.features.thermostat_unavailable'))
+        if target == 'temperature':
+            data = {'temperature': round(max(low, min(high, current + value * step)), 6)}
+        else:
+            data = {key: state.get(key) for key in ('target_temp_low', 'target_temp_high')}
+            if None in data.values() or data['target_temp_low'] > data['target_temp_high']:
+                raise ValueError(tr('backend.features.thermostat_unavailable'))
+            if target == 'target_temp_low':
+                high = min(high, data['target_temp_high'])
+            else:
+                low = max(low, data['target_temp_low'])
+            if low > high:
+                raise ValueError(tr('backend.features.thermostat_unavailable'))
+            data[target] = round(max(low, min(high, current + value * step)), 6)
+        await self.call('climate.set_temperature', entity, data)
+
     async def fan_event(self,pid,page,event):
         f=page['fan'];fan=f['fanEntity'];light=f.get('lightEntity');prefix=page['id']+'.';button=event.get('button','')
         if not button.startswith(prefix):raise ValueError(tr('backend.hub.invalid_button'))
@@ -335,6 +449,7 @@ class Hub:
     async def grid_event(self,pid,page,event):
         bid=event.get('button','');action=event.get('action','');tile=next((t for t in page['tiles'] if t['id']==bid or bid.startswith(t['id']+'.')),None)
         if not tile:raise ValueError(tr('backend.hub.unknown_button'))
+        if tile.get('destination'):raise ValueError(tr('backend.hub.button_no_action'))
         binding=None;entity=tile.get('entity')
         if tile.get('type')=='split':
             segment=next((s for s in tile.get('buttons',[]) if bid==tile['id']+'.'+s['id']),None)
@@ -436,4 +551,4 @@ class Hub:
         except Exception as e:self.log('',tr('backend.log.github_check',error=e),'warning')
     def snapshot(self):
         from .health import panel_health
-        return {'version':VERSION,'panels':[dict(copy.deepcopy(p),id=pid,status=copy.deepcopy(self.status.get(pid,{})),health=panel_health(self,pid)) for pid,p in self.panels.items()], 'timers':copy.deepcopy(self.timers),'settings':self.settings,'latest':self.latest,'logs':self.logs[-30:]}
+        return {'version':VERSION,'panels':[dict(copy.deepcopy(p),id=pid,status=copy.deepcopy(self.status.get(pid,{})),health=panel_health(self,pid)) for pid,p in self.panels.items()], 'timers':copy.deepcopy(self.timers),'settings':self.settings,'latest':self.latest,'logs':self.logs[-30:],'templates':copy.deepcopy(list(self.templates.values()))}

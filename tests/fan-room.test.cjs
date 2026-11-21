@@ -42,6 +42,43 @@ const studio=w.document.createElement('aurelvi-studio');studio.hass={language:'e
   assert(sent.some(args=>JSON.stringify(args).includes('breeze')));assert(controls.find(b=>b.textContent.includes('natural')).classList.contains('lit'));
   mirrors.aurelvi_attr_fan_ceiling_preset_mode={available:true,value:'unknown'};pw.OpenPanelDemo.set({pages:[modePage]},mirrors);
   const breeze=Array.from(pw.document.querySelectorAll('#surface .segment')).find(b=>b.textContent.includes('breeze'));assert(!breeze.disabled);assert(!breeze.classList.contains('lit'));breeze.click();assert(sent.length>=2);
+  const home = { id: "home", title: "Home", type: "grid", grid: { rows: 2, columns: 2 }, tiles: [
+    { id: "go_heat", type: "button", row: 1, col: 1, label: "Heating", destination: "heat" },
+  ] };
+  const heat = { id: "heat", title: "Thermostat", type: "grid", grid: { rows: 1, columns: 1 }, tiles: [],
+    thermostat: { entity: "climate.room" } };
+  const panelConfig = { pages: [home, heat], home: { page: "home", lights: ["light.ceiling"], openings: ["binary_sensor.door"] },
+    doorbell: { entity: "binary_sensor.bell", camera: { entity: "camera.entry" } } };
+  pw.HTMLMediaElement.prototype.play = () => Promise.resolve();
+  pw.HTMLMediaElement.prototype.pause = () => {};
+  pw.OpenPanelDemo.set(panelConfig, {
+    light_ceiling: { available: true, on: true },
+    binary_sensor_door: { available: true, on: true, friendly_name: "Terrace" },
+    climate_room: { available: true, value: "heat", current_temperature: 19, temperature: 21, min_temp: 10,
+      max_temp: 25, hvac_modes: ["heat", "off"], hvac_action: "heating", unit_of_measurement: "°C" },
+    camera_entry: { available: true, stream: "https://ha.test/camera/stream" },
+  });
+  const doc = pw.document;
+  assert.match(doc.querySelector(".panel-context").textContent, /1.*Terrace/);
+  doc.querySelector('[data-tile="go_heat"]').click();
+  assert.equal(doc.querySelector(".thermostat-current").textContent, "19 °C");
+  doc.querySelector(".thermostat-stepper button:last-child").click();
+  assert.equal(sent.at(-1)[1].value, 1);
+  assert.equal(sent.at(-1)[1].button, "heat.thermostat");
+  assert.equal(doc.querySelector(".thermostat-stepper strong").textContent, "21 °C");
+  const bellTopic = "aurelvi/panel/nspanel-7tmv73/cmd/doorbell";
+  const bell = JSON.stringify({ camera: "camera.entry" });
+  pw.OpenPanelDemo.message(bellTopic, bell, true);
+  assert(doc.querySelector(".thermostat-current"));
+  pw.OpenPanelDemo.message(bellTopic, bell, false);
+  assert.equal(doc.querySelector(".camera-stream").getAttribute("src"), "https://ha.test/camera/stream");
+  doc.querySelector(".panel-context button:first-child").click();
+  assert(doc.querySelector(".panel-context button:first-child").disabled);
+  doc.querySelector(".panel-context button:last-child").click();
+  assert(doc.querySelector(".thermostat-current"));
+  doc.getElementById("panel-home").click();
+  assert(doc.querySelector('[data-tile="go_heat"]'));
+  console.log("PASS home shortcuts and summary, confirmed thermostat, transient doorbell and page return");
   pw.close();
   delete states['fan.ceiling'].attributes.oscillating;delete states['fan.ceiling'].attributes.preset_modes;
   const rebuilt=studio.buildRoomDraft({area_id:'living',name:'Living'},records);

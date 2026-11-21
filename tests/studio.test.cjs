@@ -30,4 +30,46 @@ await test('Notification tab preserves a full draft and renders copyable HA acti
 await test('Advanced JSON edits change only the draft until Save',()=>{studio.tab='advanced';studio.render();const input=studio.shadowRoot.querySelector('textarea');const doc=JSON.parse(input.value);doc.device.iconSize=52;input.value=JSON.stringify(doc);const before=calls.filter(c=>c.action==='save').length;[...studio.shadowRoot.querySelectorAll('button')].find(b=>b.textContent==='Použiť do editora').click();assert.equal(studio.device.iconSize,52);assert.equal(calls.filter(c=>c.action==='save').length,before);});
 await test('Room builder infers six fan speeds and links only a light on the same device',()=>{studio.tab='pages';hass.states['cover.blind']={state:'closed',attributes:{friendly_name:'Blind'}};hass.states['sensor.temp']={state:'21',attributes:{friendly_name:'Temperature'}};studio.hass=hass;const before=calls.filter(c=>c.action==='save').length;const pages=studio.buildRoomDraft({name:'Living room'},[{entity_id:'fan.ceiling',device_id:'fan-device'},{entity_id:'light.ceiling',device_id:'fan-device'},{entity_id:'cover.blind',device_id:'cover-device'},{entity_id:'sensor.temp'}]);const fan=pages.find(p=>p.type==='fan').fan;assert.equal(fan.speeds.length,6);assert.equal(fan.lightEntity,'light.ceiling');assert.equal(fan.controls.direction,true);const grid=pages.find(p=>p.type==='grid');assert(grid.tiles.some(t=>t.entity==='cover.blind'&&t.type==='rocker'));assert(grid.tiles.some(t=>t.entity==='sensor.temp'&&t.type==='readout'));assert.equal(calls.filter(c=>c.action==='save').length,before);assert(studio.dirty);});
 await test('Main layout exposes room builder, theme gallery and wallpaper controls',()=>{studio.tab='pages';studio.render();assert(studio.shadowRoot.querySelector('.workspace .pages'));assert(studio.shadowRoot.querySelector('.workspace .preview-wrap'));assert(studio.shadowRoot.querySelector('.workspace .inspector'));assert(studio.shadowRoot.querySelector('.studio-hero').textContent.includes('Vytvoriť miestnosť'));assert.equal(studio.shadowRoot.querySelectorAll('.theme-swatch').length,80);assert.equal(studio.shadowRoot.querySelectorAll('.wallpaper-swatch').length,6);assert(studio.shadowRoot.querySelector('input[type=file]'));const forest=[...studio.shadowRoot.querySelectorAll('.wallpaper-swatch')].find(b=>b.textContent==='Les');forest.click();assert.equal(studio.device.wallpaper.id,'forest');assert(studio.dirty);});
+await test("Templates remap entities and service targets and create a previewable draft", async () => {
+  const page = { id: "settings", title: "Fan settings", type: "grid", grid: { rows: 1, columns: 1 }, tiles: [{
+    id: "mode", type: "switcher", row: 1, col: 1, entity: "fan.ceiling",
+    stateAttribute: "preset_mode", stateKey: "aurelvi_attr_fan_ceiling_preset_mode",
+    bindings: { press: { service: "fan.set_preset_mode", target: { entity_id: ["fan.ceiling"] } } },
+  }] };
+  hass.states["fan.bedroom"] = { state: "on", attributes: {} };
+  studio.hass = hass;
+  store.templates = [{ id: "saved", name: "Fan settings", page }];
+  await studio.refreshStatus();
+  studio.tab = "pages";
+  studio.render();
+  const click = (label) => [...studio.shadowRoot.querySelectorAll("button")].find((button) => button.textContent === label).click();
+  click("Šablóny stránok");
+  change("fan.ceiling", "fan.bedroom");
+  click(studio.shadowRoot.querySelector(".modal button.primary").textContent);
+  const tile = studio.draft.pages.at(-1).tiles[0];
+  assert.notEqual(tile.id, "mode");
+  assert.equal(tile.entity, "fan.bedroom");
+  assert.equal(tile.bindings.press.target.entity_id[0], "fan.bedroom");
+  assert.equal(tile.stateKey, "aurelvi_attr_fan_bedroom_preset_mode");
+  assert.equal(store.templates[0].page.tiles[0].entity, "fan.ceiling");
+  assert(studio.shadowRoot.querySelector("iframe"));
+});
+await test("Studio selects the doorbell sensor, camera and revision of each target panel", async () => {
+  store.panels[0].name = "Chodba";
+  hass.states["binary_sensor.bell"] = { state: "off", attributes: {} };
+  store.panels.push({ ...store.panels[0], id: "other", name: "Spálňa", revision: 6 });
+  await studio.load();
+  studio.tab = "manage";
+  studio.render();
+  change("Snímač zvončeka", "binary_sensor.bell");
+  change("Kamera", "camera.entry");
+  change("Spálňa", true);
+  const card = [...studio.shadowRoot.querySelectorAll("section")].find((section) => section.querySelector("h2").textContent === "Zvonček");
+  card.querySelector("button.primary").click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const request = calls.findLast((call) => call.action === "doorbell_configure");
+  assert.equal(request.data.doorbell.camera.entity, "camera.entry");
+  assert.equal(request.data.revisions.other, 6);
+  assert.equal(request.data.revisions.test, store.panels[0].revision);
+});
 studio.remove();w.close();console.log(count+' Studio checks passed');})().catch(e=>{console.error(e);studio.remove();w.close();process.exitCode=1;});

@@ -53,6 +53,8 @@ def validate_config(doc):
     if not isinstance(pages,list) or not 1<=len(pages)<=30: raise ValueError(msg('backend.models.pages_count'))
     page_ids=set(); tile_ids=set()
     for page in pages:
+        if not isinstance(page, dict):
+            raise ValueError(msg('backend.models.unsupported_page_type'))
         pid=panel_id(page.get('id'))
         if pid in page_ids: raise ValueError(msg('backend.models.duplicate_page'))
         page_ids.add(pid)
@@ -72,6 +74,11 @@ def validate_config(doc):
                 tile_ids.add(pid+'.'+eid);actions(extra.get('actions'))
             if len(fan.get('extras',[]))>8:raise ValueError(msg('backend.models.extras_max'))
         if page.get('type')=='grid':
+            if 'thermostat' in page:
+                thermostat = page['thermostat']
+                if not isinstance(thermostat, dict):
+                    raise ValueError(msg('backend.models.invalid_entity'))
+                entity_id(thermostat.get('entity'), 'climate')
             grid=page.get('grid',{});cols=number(grid.get('columns'),1,12);rows=number(grid.get('rows'),1,12)
             if int(cols)!=cols or int(rows)!=rows: raise ValueError(msg('backend.models.grid_integers'))
             tiles=page.get('tiles',[])
@@ -92,6 +99,8 @@ def validate_config(doc):
                         if (c,r) in occupied:raise ValueError(msg('backend.models.tiles_overlap'))
                         occupied.add((c,r))
                 if tile.get('entity'):entity_id(tile['entity'])
+                if 'destination' in tile:
+                    panel_id(tile['destination'])
                 if 'stateAttribute' in tile:
                     if tile['stateAttribute'] not in PROJECTED_ATTRIBUTES or not tile.get('entity') or tile.get('stateKey')!=attribute_key(tile['entity'],tile['stateAttribute']):
                         raise ValueError(msg('backend.models.invalid_projection'))
@@ -103,6 +112,27 @@ def validate_config(doc):
             for camera in (page.get('camera') or {}).get('cameras',[]):
                 entity_id(camera.get('entity'),'camera')
                 for binding in camera.get('ptz',{}).values():actions(binding)
+    if 'home' in doc:
+        home = doc['home']
+        if not isinstance(home, dict) or not isinstance(home.get('page'), str) or home['page'] not in page_ids:
+            raise ValueError(msg('backend.features.invalid_home'))
+        for key, domains in [('lights', {'light'}), ('openings', {'binary_sensor', 'cover'})]:
+            items = home.get(key, [])
+            if not isinstance(items, list) or len(items) > 12:
+                raise ValueError(msg('backend.features.invalid_home'))
+            for item in items:
+                if entity_id(item).split('.')[0] not in domains:
+                    raise ValueError(msg('backend.features.invalid_home'))
+    if 'doorbell' in doc:
+        doorbell = doc['doorbell']
+        if not isinstance(doorbell, dict):
+            raise ValueError(msg('backend.features.invalid_doorbell'))
+        if entity_id(doorbell.get('entity')).split('.')[0] not in {'binary_sensor', 'event'}:
+            raise ValueError(msg('backend.features.invalid_doorbell'))
+        camera = doorbell.get('camera')
+        if not isinstance(camera, dict):
+            raise ValueError(msg('backend.features.invalid_doorbell'))
+        entity_id(camera.get('entity'), 'camera')
     doc.setdefault('v',1);doc.setdefault('theme','cream')
     return doc
 
@@ -111,7 +141,7 @@ def entities(config):
     def walk(value):
         if isinstance(value,dict):
             for key,v in value.items():
-                if key in {'entity','entity_id','fanEntity','lightEntity'}:
+                if key in {'entity','entity_id','fanEntity','lightEntity','lights','openings'}:
                     for item in [v] if isinstance(v,str) else v if isinstance(v,list) else []:
                         if isinstance(item,str) and ENTITY.fullmatch(item):out.add(item)
                 walk(v)
@@ -146,6 +176,15 @@ def mirror(state):
             kelvin=1000000/mired
             if math.isfinite(kelvin):doc['color_temp_kelvin']=round(kelvin)
     if state.entity_id.startswith('weather.'):doc['condition']=value;doc['attributes']=dict(a)
+    if state.entity_id.startswith('climate.'):
+        for name in ('min_temp', 'max_temp', 'target_temp_step', 'target_temp_low', 'target_temp_high'):
+            reading = finite_attribute(a.get(name))
+            if reading is not None:
+                doc[name] = reading
+        if isinstance(a.get('hvac_modes'), (list, tuple)):
+            doc['hvac_modes'] = [mode for mode in a['hvac_modes'] if isinstance(mode, str)]
+        if isinstance(a.get('hvac_action'), str):
+            doc['hvac_action'] = a['hvac_action']
     return doc
 
 def fan_page(fan='fan.stropny_ventilator',light='light.stropne_svetlo',count=6):
