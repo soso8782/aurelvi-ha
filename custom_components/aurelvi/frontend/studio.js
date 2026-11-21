@@ -556,7 +556,8 @@ if(root.document&&DATA.mount!==false){if(root.document.readyState==='loading')ro
         this.entity(thermostat, tr("studio.features.thermostat_entity"), page.thermostat.entity, "climate", (entity) => {
           this.update(() => {
             page.thermostat.entity = entity.trim();
-            page.tiles[0].entity = page.thermostat.entity;
+            const fallback = page.tiles.find((tile) => tile.type === "readout");
+            if (fallback) fallback.entity = page.thermostat.entity;
           });
         });
       } else if (page.type === "grid") {

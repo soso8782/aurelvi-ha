@@ -54,6 +54,16 @@ await test("Templates remap entities and service targets and create a previewabl
   assert.equal(store.templates[0].page.tiles[0].entity, "fan.ceiling");
   assert(studio.shadowRoot.querySelector("iframe"));
 });
+await test("A thermostat draft imported without a fallback tile remains editable", () => {
+  const thermostat = { id: "heat", type: "grid", grid: { rows: 1, columns: 1 }, tiles: [],
+    thermostat: { entity: "climate.hall" } };
+  studio.draft.pages.push(thermostat);
+  studio.pageIndex = studio.draft.pages.length - 1;
+  studio.render();
+  change("Entita kúrenia alebo klimatizácie", "climate.bedroom");
+  assert.equal(thermostat.thermostat.entity, "climate.bedroom");
+  assert.equal(studio.error, false);
+});
 await test("Studio selects the doorbell sensor, camera and revision of each target panel", async () => {
   store.panels[0].name = "Chodba";
   hass.states["binary_sensor.bell"] = { state: "off", attributes: {} };
