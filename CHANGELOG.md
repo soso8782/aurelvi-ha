@@ -7,6 +7,14 @@
 
 # Changelog
 
+## 0.3.17
+
+- Add a Home screen with favorite controls, page shortcuts and a status summary.
+- Add thermostat pages with temperature readings, target controls and HVAC modes.
+- Configure a doorbell and camera for one or more panels in Studio.
+- Save page layouts as templates and remap entities when reusing them.
+- Use Aurelvi APK 0.3.17 for these features on the wall panel.
+
 ## 0.3.16
 
 - Integration icon and logo shown in Home Assistant (local `brand/` images, Home Assistant 2026.3 or newer; light and dark variants).
