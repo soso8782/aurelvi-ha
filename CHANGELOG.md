@@ -7,6 +7,11 @@
 
 # Changelog
 
+## 0.3.20
+
+- Reuse the saved ADB host and port in Studio's Setup / Update dialog.
+- Show the actual error next to the connection settings and distinguish a refused port, an unresponsive device and a pending authorization prompt.
+
 ## 0.3.19
 
 - Add a permanent return link to the Home Assistant dashboard in Studio. It is available on phones even while Studio is loading or the Home Assistant sidebar is hidden.

@@ -147,6 +147,7 @@ def execute(key_path, host, port, operation, data):
     from adb_shell.adb_device import AdbDeviceTcp
     from adb_shell.auth.keygen import keygen
     from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+    from adb_shell.exceptions import AdbTimeoutError, TcpTimeoutException
 
     key = Path(key_path)
     key.parent.mkdir(parents=True, exist_ok=True)
@@ -160,9 +161,23 @@ def execute(key_path, host, port, operation, data):
     os.chmod(key, 0o600)
     signer = PythonRSASigner.FromRSAKeyPath(str(key))
     device = AdbDeviceTcp(host, port, default_transport_timeout_s=15)
+    awaiting_authorization = False
+
+    def mark_authorization_prompt(_transport):
+        nonlocal awaiting_authorization
+        awaiting_authorization = True
+
     try:
-        auth_callback = reject_unauthorized_install if operation == "install" else None
-        if not device.connect(rsa_keys=[signer], auth_timeout_s=15, read_timeout_s=20, auth_callback=auth_callback):
+        auth_callback = reject_unauthorized_install if operation == "install" else mark_authorization_prompt
+        try:
+            connected = device.connect(rsa_keys=[signer], auth_timeout_s=15, read_timeout_s=20, auth_callback=auth_callback)
+        except ConnectionRefusedError as err:
+            raise ValueError(msg("backend.adb.port_refused", host=host, port=port)) from err
+        except (AdbTimeoutError, TcpTimeoutException, TimeoutError) as err:
+            if awaiting_authorization:
+                raise ValueError(msg("backend.adb.auth_pending")) from err
+            raise ValueError(msg("backend.adb.connect_timeout", host=host, port=port)) from err
+        if not connected:
             raise ValueError(msg('backend.adb.auth_pending'))
         if operation == "install":
             with tempfile.TemporaryDirectory(prefix="aurelvi-apk-") as folder:

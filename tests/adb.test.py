@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 from adb_shell.auth.keygen import keygen
 from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+from adb_shell.exceptions import TcpTimeoutException
 
 _pkg=types.ModuleType('aurelvi_pkg');_pkg.__path__=[str(Path(__file__).resolve().parents[1]/'custom_components/aurelvi')];sys.modules['aurelvi_pkg']=_pkg
 spec=importlib.util.spec_from_file_location('aurelvi_pkg.adb',Path(__file__).resolve().parents[1]/'custom_components/aurelvi/adb.py')
@@ -75,6 +76,24 @@ class Tests(unittest.TestCase):
                 self.execute('install')
         download.assert_not_called()
         self.assertTrue(Device.instances[-1].closed)
+
+    def test_connection_errors_identify_the_failed_stage(self):
+        cases = [
+            (ConnectionRefusedError('closed'), False, 'backend.adb.port_refused'),
+            (TcpTimeoutException('no reply'), False, 'backend.adb.connect_timeout'),
+            (TcpTimeoutException('no approval'), True, 'backend.adb.auth_pending'),
+        ]
+        for error, offered_key, expected in cases:
+            with self.subTest(error=error):
+                def fail(device, **kwargs):
+                    if offered_key:
+                        kwargs['auth_callback'](device)
+                    raise error
+
+                with patch.object(Device, 'connect', fail), self.assertRaises(ValueError) as caught:
+                    self.execute('connect')
+                self.assertEqual(str(caught.exception).partition('|')[0], expected)
+                self.assertTrue(Device.instances[-1].closed)
 
     def test_install_reports_success_when_opening_the_app_fails(self):
         def download(path):
