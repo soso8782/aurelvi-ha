@@ -1,0 +1,39 @@
+name: Restore JsSIP bundle
+# Added during the repository recovery (see RECOVERY.md): fetches the official
+# JsSIP 3.10.1 browser build from npm and commits it as frontend/jssip.min.js.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download JsSIP 3.10.1 from npm
+        run: |
+          mkdir -p "$RUNNER_TEMP/jssip" && cd "$RUNNER_TEMP/jssip"
+          npm pack jssip@3.10.1 --silent
+          tar -xzf jssip-3.10.1.tgz
+          ls package/dist
+          test -s package/dist/jssip.min.js
+      - name: Check the bundle exposes the JsSIP global
+        run: |
+          node -e "
+          const vm=require('vm'),fs=require('fs');
+          const sandbox={window:{},navigator:{userAgent:'node'},console};sandbox.self=sandbox.window;sandbox.globalThis=sandbox.window;
+          vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.env.RUNNER_TEMP+'/jssip/package/dist/jssip.min.js','utf8'),sandbox);
+          const J=sandbox.JsSIP||sandbox.window.JsSIP;if(!J||!J.UA||!J.WebSocketInterface)throw Error('JsSIP global missing');console.log('JsSIP',J.version||J.C&&J.C.version||'ok');"
+      - name: Commit bundle
+        run: |
+          cp "$RUNNER_TEMP/jssip/package/dist/jssip.min.js" custom_components/aurelvi/frontend/jssip.min.js
+          sha256sum custom_components/aurelvi/frontend/jssip.min.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom_components/aurelvi/frontend/jssip.min.js
+          if git diff --cached --quiet; then echo "Already present"; exit 0; fi
+          git commit -m "Restore JsSIP 3.10.1 browser bundle from npm"
+          git push origin HEAD:main
