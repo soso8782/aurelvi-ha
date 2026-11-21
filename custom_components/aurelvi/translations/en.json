@@ -1,0 +1,189 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Aurelvi is already configured."
+    },
+    "error": {
+      "mqtt_disconnected": "MQTT is disconnected. Check the broker.",
+      "mqtt_missing": "Set up the MQTT integration and broker first."
+    },
+    "step": {
+      "user": {
+        "description": "Uses the existing Home Assistant MQTT integration. Connect the panel to the same broker, using Aurelvi mode. Configure pages in Aurelvi Studio in the sidebar.",
+        "title": "Aurelvi – Home at a touch"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Motion"
+      },
+      "online": {
+        "name": "Connection"
+      }
+    },
+    "button": {
+      "adb_reboot": {
+        "name": "Reboot (ADB)"
+      },
+      "cancel_timer": {
+        "name": "Cancel timer"
+      },
+      "info": {
+        "name": "Refresh information"
+      },
+      "wake": {
+        "name": "Wake"
+      }
+    },
+    "media_player": {
+      "speaker": {
+        "name": "Speaker"
+      }
+    },
+    "notify": {
+      "notification": {
+        "name": "Notification"
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Screen brightness"
+      }
+    },
+    "sensor": {
+      "freeMemMB": {
+        "name": "Free memory"
+      },
+      "illuminance": {
+        "name": "Illuminance"
+      },
+      "rssi": {
+        "name": "Wi-Fi signal"
+      },
+      "timer": {
+        "name": "Timer"
+      },
+      "uptimeS": {
+        "name": "Uptime"
+      },
+      "version": {
+        "name": "Version"
+      }
+    },
+    "switch": {
+      "screen": {
+        "name": "Screen"
+      }
+    },
+    "update": {
+      "update": {
+        "name": "App update"
+      }
+    }
+  },
+  "exceptions": {
+    "adb_failed": {
+      "message": "ADB operation failed: {error}"
+    },
+    "github_not_configured": {
+      "message": "Set up GitHub in Aurelvi Studio first"
+    },
+    "panel_command_failed": {
+      "message": "Panel command failed: {error}"
+    }
+  },
+  "services": {
+    "cancel_timer": {
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Cancel timer"
+    },
+    "notify": {
+      "fields": {
+        "message": {
+          "name": "Notification message"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        },
+        "priority": {
+          "name": "Priority"
+        },
+        "sound": {
+          "description": "ding, alarm_beep, alarm, alarmo, siren, or a sound URL.",
+          "name": "Sound or HTTPS/HTTP URL"
+        },
+        "timeoutS": {
+          "name": "Display duration in seconds (0 = unlimited)"
+        },
+        "title": {
+          "name": "Title"
+        }
+      },
+      "name": "Panel notification"
+    },
+    "page": {
+      "fields": {
+        "id": {
+          "name": "Studio page ID"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Show page"
+    },
+    "push_config": {
+      "description": "Resend saved pages and states to the panel.",
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Push configuration"
+    },
+    "screen": {
+      "fields": {
+        "action": {
+          "name": "Action"
+        },
+        "brightness": {
+          "name": "Brightness (0.05 to 1)"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Set screen"
+    },
+    "start_timer": {
+      "description": "The timer is stored in Home Assistant and restored after a restart.",
+      "fields": {
+        "entity_id": {
+          "name": "Device to turn off"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        },
+        "seconds": {
+          "name": "Seconds"
+        }
+      },
+      "name": "Start shutdown timer"
+    },
+    "wake": {
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Wake panel"
+    }
+  },
+  "title": "Aurelvi"
+}

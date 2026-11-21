@@ -1,0 +1,15 @@
+name = "aurelvi-licensing"
+main = "worker.mjs"
+compatibility_date = "2026-10-14"
+workers_dev = true
+
+[vars]
+SITE_URL = "https://aurelvi-app.com"
+COMMERCE_ENABLED = "false"
+NATIVE_ACTIVATION_READY = "false"
+# Both prices must be EUR recurring yearly, one panel, quantity 1.
+# STRIPE_PRICE_FULL = "price_..." # EUR 34.90/year
+# STRIPE_PRICE_PAGE = "price_..." # EUR 7.90/year, page type in signed metadata
+# STRIPE_PORTAL_CONFIGURATION = "bpc_..." # cancellation at period end; no plan/quantity changes
+# Secrets: STRIPE_SECRET_KEY, LICENCE_PRIVATE_JWK (never commit values).
+# Add api.aurelvi-app.com as the Worker's Custom Domain in Cloudflare.

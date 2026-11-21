@@ -1,0 +1,153 @@
+push_config:
+  name: Push configuration
+  description: Resend saved pages and states to the panel.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      example: nspanel-7tmv73
+      selector:
+        text: {}
+wake:
+  name: Wake panel
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+page:
+  name: Show page
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    id:
+      name: Studio page ID
+      required: true
+      selector:
+        text: {}
+screen:
+  name: Set screen
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    action:
+      name: Action
+      required: true
+      selector:
+        select:
+          options:
+          - 'on'
+          - 'off'
+          - dim
+    brightness:
+      name: Brightness (0.05 to 1)
+      selector:
+        number:
+          min: 0.05
+          max: 1
+          step: 0.05
+start_timer:
+  name: Start shutdown timer
+  description: The timer is stored in Home Assistant and restored after a restart.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    entity_id:
+      name: Device to turn off
+      required: true
+      selector:
+        entity:
+          domain:
+          - fan
+          - light
+    seconds:
+      name: Seconds
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 86400
+          mode: box
+cancel_timer:
+  name: Cancel timer
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+notify:
+  name: Panel notification
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    title:
+      name: Title
+      selector:
+        text: {}
+    message:
+      name: Notification message
+      required: true
+      selector:
+        text:
+          multiline: true
+    priority:
+      name: Priority
+      selector:
+        select:
+          options:
+          - normal
+          - high
+    timeoutS:
+      name: Display duration in seconds (0 = unlimited)
+      selector:
+        number:
+          min: 0
+          max: 86400
+          mode: box
+    sound:
+      name: Sound or HTTPS/HTTP URL
+      description: ding, alarm_beep, alarm, alarmo, siren, or a sound URL.
+      selector:
+        text: {}
+adb_command:
+  name: ADB command
+  description: Run a safe ADB command on the panel over the LAN. Works while the panel is offline in MQTT. Requires network debugging and a prior authorization (Studio Setup / Update).
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      example: nspanel-7tmv73
+      selector:
+        text: {}
+    operation:
+      name: Operation
+      required: true
+      selector:
+        select:
+          options: [wake, power, back, home, launch, reboot, connect]
+    host:
+      name: Panel IP (optional)
+      description: Overrides the stored address or the IP reported by the panel.
+      selector:
+        text: {}
+    port:
+      name: ADB port (optional)
+      selector:
+        number:
+          min: 1
+          max: 65535
+          mode: box

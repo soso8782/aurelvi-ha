@@ -1,0 +1,55 @@
+name: Check Aurelvi website in Chromium
+on:
+  push:
+    paths:
+      - 'website/**'
+      - 'custom_components/aurelvi/frontend/**'
+      - 'website-tests/**'
+      - '.github/workflows/website-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --ignore-scripts --prefix website-tests
+      - name: Install Chromium
+        working-directory: website-tests
+        run: npx playwright install --with-deps chromium
+      - name: Capture page layouts from the actual app
+        run: node website-tests/page-captures.mjs
+      - name: Test responsive site
+        run: node website-tests/browser.mjs
+      - name: Capture actual panel materials
+        run: node website-tests/materials.mjs
+      - name: Build current material atlas
+        run: |
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python website-tests/materials-atlas.py
+      - name: Save verified previews on the review branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/review/materials-intercom-0.3.11'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/assets/*.webp custom_components/aurelvi/frontend/theme-atlas.webp
+          if ! git diff --cached --quiet; then
+            git commit -m "Refresh all 80 actual material previews"
+            git push origin HEAD:review/materials-intercom-0.3.11
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aurelvi-website-screenshots
+          path: |
+            website-test-results
+            material-captures
+            website/assets/pages

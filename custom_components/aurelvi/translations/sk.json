@@ -1,0 +1,189 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Integrácia Aurelvi je už pridaná."
+    },
+    "error": {
+      "mqtt_disconnected": "MQTT nie je pripojené. Skontroluj broker.",
+      "mqtt_missing": "Najprv pridaj integráciu MQTT a nastav broker."
+    },
+    "step": {
+      "user": {
+        "description": "Použijeme existujúcu MQTT integráciu Home Assistanta. Panel musí používať rovnaký broker a režim Aurelvi. Stránky nastavíš v Aurelvi Studio v bočnom menu.",
+        "title": "Aurelvi – Domov na dotyk"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Pohyb"
+      },
+      "online": {
+        "name": "Pripojenie"
+      }
+    },
+    "button": {
+      "adb_reboot": {
+        "name": "Reštartovať (ADB)"
+      },
+      "cancel_timer": {
+        "name": "Zrušiť časovač"
+      },
+      "info": {
+        "name": "Obnoviť informácie"
+      },
+      "wake": {
+        "name": "Prebudiť"
+      }
+    },
+    "media_player": {
+      "speaker": {
+        "name": "Reproduktor"
+      }
+    },
+    "notify": {
+      "notification": {
+        "name": "Oznámenie"
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Jas displeja"
+      }
+    },
+    "sensor": {
+      "freeMemMB": {
+        "name": "Voľná pamäť"
+      },
+      "illuminance": {
+        "name": "Osvetlenosť"
+      },
+      "rssi": {
+        "name": "Wi-Fi signál"
+      },
+      "timer": {
+        "name": "Časovač"
+      },
+      "uptimeS": {
+        "name": "Čas od štartu"
+      },
+      "version": {
+        "name": "Verzia"
+      }
+    },
+    "switch": {
+      "screen": {
+        "name": "Obrazovka"
+      }
+    },
+    "update": {
+      "update": {
+        "name": "Aktualizácia aplikácie"
+      }
+    }
+  },
+  "exceptions": {
+    "adb_failed": {
+      "message": "Operácia ADB zlyhala: {error}"
+    },
+    "github_not_configured": {
+      "message": "Najprv nastav GitHub v Aurelvi Studio"
+    },
+    "panel_command_failed": {
+      "message": "Príkaz pre panel zlyhal: {error}"
+    }
+  },
+  "services": {
+    "cancel_timer": {
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Zrušiť časovač"
+    },
+    "notify": {
+      "fields": {
+        "message": {
+          "name": "Text oznámenia"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        },
+        "priority": {
+          "name": "Priorita"
+        },
+        "sound": {
+          "description": "ding, alarm_beep, alarm, alarmo, siren, alebo URL zvuku.",
+          "name": "Zvuk alebo HTTPS/HTTP adresa"
+        },
+        "timeoutS": {
+          "name": "Čas zobrazenia v sekundách (0 = bez limitu)"
+        },
+        "title": {
+          "name": "Nadpis"
+        }
+      },
+      "name": "Oznámenie na panel"
+    },
+    "page": {
+      "fields": {
+        "id": {
+          "name": "ID stránky zo Studia"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Zobraziť stránku"
+    },
+    "push_config": {
+      "description": "Znovu odošle uložené stránky a stavy na panel.",
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Odoslať konfiguráciu"
+    },
+    "screen": {
+      "fields": {
+        "action": {
+          "name": "Akcia"
+        },
+        "brightness": {
+          "name": "Jas (0.05 až 1)"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Nastaviť displej"
+    },
+    "start_timer": {
+      "description": "Časovač sa ukladá v HA a obnoví sa po jeho reštarte.",
+      "fields": {
+        "entity_id": {
+          "name": "Zariadenie na vypnutie"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        },
+        "seconds": {
+          "name": "Počet sekúnd"
+        }
+      },
+      "name": "Spustiť časovač vypnutia"
+    },
+    "wake": {
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Prebudiť panel"
+    }
+  },
+  "title": "Aurelvi"
+}
