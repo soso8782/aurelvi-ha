@@ -31,3 +31,7 @@ Všetky odkazy na pôvodný účet `sonics007` (zdroj aktualizácií, workflowy,
 - **Logo webu a APK README** (`logo.svg`): kópia symbolu `logo-symbol.svg`.
 - **Testy:** kontroly nemeckého textu sa preskočia, kým nie je obnovený `locale/de.json`.
 - **Publikovanie APK:** workflow sa bez súboru v `dist/` ukončí s upozornením namiesto chyby.
+- **Obrázky webu a Studia** (`website/assets/*.webp`, `theme-atlas.webp`, `studio.png`): znova vyfotené
+  z aktuálnej aplikácie pôvodnými skriptmi `website-tests/` (Studio novým `website-tests/studio-capture.mjs`),
+  takže zobrazujú náhradné textúry. `website/assets/skins.js` je kópia `frontend/skins.js`.
+- **Testy webu:** počet jazykov v prepínači sa porovnáva s počtom súborov v `locale/`.
