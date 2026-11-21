@@ -4,7 +4,7 @@ Static product website for the Aurelvi NSPanel Pro project. English by default, 
 
 Pages: home, features, 80-skin palette gallery, setup guide, proposed Plus pricing and activation result. Gallery controls are an illustrative browser demo, not connected to a real panel. The editor image is the existing public Aurelvi Studio 0.3.4 screenshot and is labelled with its version.
 
-Host the `website` directory with GitHub Pages. All links are relative, supporting `https://sonics007.github.io/aurelvi-ha/` and a custom domain. Current integration and APK versions are fetched from public release endpoints with static fallback labels. No GitHub token is used in the website.
+Host the `website` directory with GitHub Pages. All links are relative, supporting `https://soso8782.github.io/aurelvi-ha/` and a custom domain. Current integration and APK versions are fetched from public release endpoints with static fallback labels. No GitHub token is used in the website.
 
 ## Hosting
 
@@ -16,7 +16,7 @@ Sales remain disabled. The current offer is yearly recurring, per panel: Full EU
 
 ## Publishing after first-time setup
 
-In repository Settings → Pages, select **GitHub Actions** as the source. The **Publish Aurelvi website** workflow deploys the `website/` directory when its content changes. The target public address is `https://aurelvi-app.com/`. The original address remains `https://sonics007.github.io/aurelvi-ha/` until the custom domain is activated. Future website commits redeploy automatically. Deployment success must be checked in Actions before treating this address as live.
+In repository Settings → Pages, select **GitHub Actions** as the source. The **Publish Aurelvi website** workflow deploys the `website/` directory when its content changes. The target public address is `https://aurelvi-app.com/`. The original address remains `https://soso8782.github.io/aurelvi-ha/` until the custom domain is activated. Future website commits redeploy automatically. Deployment success must be checked in Actions before treating this address as live.
 
 Atelier 0.3.7 adds a persistent light/dark switch, eight locally bundled full app images and an 80-cell screenshot atlas. The previous skin/pack/lifetime proposal is superseded by annual page-type and Full licences. Purchases stay disabled pending Stripe and on-device testing.
 
@@ -34,7 +34,7 @@ Status: website URLs are prepared; GitHub Pages custom-domain and registrar DNS 
 | A | @ | 185.199.109.153 |
 | A | @ | 185.199.110.153 |
 | A | @ | 185.199.111.153 |
-| CNAME | www | sonics007.github.io |
+| CNAME | www | soso8782.github.io |
 
 3. Wait for DNS validation and the GitHub certificate, then enable Enforce HTTPS.
 4. Verify that the homepage, assets and subpages load at `https://aurelvi-app.com/`, and that the old GitHub Pages URL redirects correctly.

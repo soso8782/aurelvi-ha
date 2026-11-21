@@ -23,7 +23,7 @@ $$('[data-demo-light],[data-demo-toggle]').forEach(el=>el.onclick=()=>el.classLi
 $$('[data-demo-off]').forEach(el=>el.onclick=()=>$$('[data-speed]',el.closest('.panel-screen')).forEach(n=>n.classList.remove('active')));
 async function copy(value,button){try{await navigator.clipboard.writeText(value);button.textContent=text('web.copy.copied');setTimeout(()=>{button.textContent=text('common.copy')},1800)}catch{button.textContent=text('web.copy.select_text')}}
 $$('.copy').forEach(button=>button.onclick=()=>copy($('code',button.parentElement).textContent,button));
-async function latest(repo,selector,label){try{const response=await fetch(`https://api.github.com/repos/sonics007/${repo}/releases/latest`,{headers:{Accept:'application/vnd.github+json'}});if(!response.ok)return;const data=await response.json();if(!/^v?\d+\.\d+\.\d+$/.test(data.tag_name))return;$$(selector).forEach(el=>el.textContent=label+' '+data.tag_name.replace(/^v/,''))}catch{}}
+async function latest(repo,selector,label){try{const response=await fetch(`https://api.github.com/repos/soso8782/${repo}/releases/latest`,{headers:{Accept:'application/vnd.github+json'}});if(!response.ok)return;const data=await response.json();if(!/^v?\d+\.\d+\.\d+$/.test(data.tag_name))return;$$(selector).forEach(el=>el.textContent=label+' '+data.tag_name.replace(/^v/,''))}catch{}}
 if($('[data-ha-version]'))latest('aurelvi-ha','[data-ha-version]','Integration');if($('[data-apk-version]'))latest('aurelvi-apk','[data-apk-version]','APK');
 let commerce={enabled:false,apiBase:'',nativeActivationReady:false};
 async function setupCommerce(){try{const res=await fetch('assets/commerce.json',{cache:'no-store'});if(res.ok)commerce=await res.json()}catch{}

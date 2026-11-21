@@ -44,7 +44,7 @@ jobs:
           with ZipFile('marketing/aurelvi-nspanel-pro-framed.zip','w',ZIP_DEFLATED) as z:
               for p in images:
                   z.write(p, 'aurelvi-nspanel-pro-framed/'+p.name)
-          Path('marketing/NSPANEL-PRO-FRAMED.md').write_text('# Aurelvi panel images\n\n80 PNG screenshots of the actual Aurelvi demo interface, rendered at 1280 × 1280 pixels with transparent backgrounds. English labels. These are digital device mockups in a dark NSPanel Pro 86-style frame, not product photographs.\n\n[Download all 80 images as ZIP](https://github.com/sonics007/aurelvi-ha/raw/refs/heads/main/marketing/aurelvi-nspanel-pro-framed.zip)\n\n[Browse individual PNG images](nspanel-pro-framed/)\n')
+          Path('marketing/NSPANEL-PRO-FRAMED.md').write_text('# Aurelvi panel images\n\n80 PNG screenshots of the actual Aurelvi demo interface, rendered at 1280 × 1280 pixels with transparent backgrounds. English labels. These are digital device mockups in a dark NSPanel Pro 86-style frame, not product photographs.\n\n[Download all 80 images as ZIP](https://github.com/soso8782/aurelvi-ha/raw/refs/heads/main/marketing/aurelvi-nspanel-pro-framed.zip)\n\n[Browse individual PNG images](nspanel-pro-framed/)\n')
           PY
       - name: Save images to GitHub
         run: |

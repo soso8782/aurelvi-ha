@@ -19,4 +19,4 @@ História commitov sa nezachovala – toto je nový počiatočný commit.
 - `android/assets/` je kópia frontendu z aurelvi-ha (bez Studia).
 - `android/examples/*.json` a `THIRD_PARTY_NOTICES.txt` boli zostavené zo zachovaných zdrojov.
 
-Odkazy na `sonics007` v kóde a dokumentácii sú ponechané tak, ako boli v originále.
+Všetky odkazy na pôvodný účet `sonics007` (zdroj aktualizácií, workflowy, README, web, manifest, LICENSE) boli prepísané na `soso8782`.

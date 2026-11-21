@@ -16,8 +16,8 @@
     "adb-shell==0.4.4"
   ],
   "codeowners": [
-    "@sonics007"
+    "@soso8782"
   ],
-  "documentation": "https://github.com/sonics007/aurelvi-ha",
-  "issue_tracker": "https://github.com/sonics007/aurelvi-ha/issues"
+  "documentation": "https://github.com/soso8782/aurelvi-ha",
+  "issue_tracker": "https://github.com/soso8782/aurelvi-ha/issues"
 }

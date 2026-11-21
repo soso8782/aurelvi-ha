@@ -41,7 +41,7 @@ jobs:
           with ZipFile('marketing/aurelvi-panel-images.zip','w',ZIP_DEFLATED) as z:
               for p in images:
                   z.write(p, 'aurelvi-panel-images/'+p.name)
-          Path('marketing/README.md').write_text('# Aurelvi panel images\n\n80 PNG screenshots of the actual Aurelvi demo interface, rendered at 960 × 960 pixels. English labels. These are screen images without a physical device frame.\n\n[Download all 80 images as ZIP](https://github.com/sonics007/aurelvi-ha/raw/refs/heads/main/marketing/aurelvi-panel-images.zip)\n\n[Browse individual PNG images](panel-images/)\n')
+          Path('marketing/README.md').write_text('# Aurelvi panel images\n\n80 PNG screenshots of the actual Aurelvi demo interface, rendered at 960 × 960 pixels. English labels. These are screen images without a physical device frame.\n\n[Download all 80 images as ZIP](https://github.com/soso8782/aurelvi-ha/raw/refs/heads/main/marketing/aurelvi-panel-images.zip)\n\n[Browse individual PNG images](panel-images/)\n')
           PY
       - name: Save images to GitHub
         run: |

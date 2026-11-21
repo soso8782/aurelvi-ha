@@ -11,9 +11,9 @@ class Settings(unittest.IsolatedAsyncioTestCase):
   self.hub.status={'test':{'online':True,'info':{},'sys':{}}}
   async def releases():pass
   self.hub.check_releases=releases
- def snapshot(self):return {'settings':{'githubRepo':'sonics007/aurelvi-apk','githubAsset':'','haToken':'secret','password':'secret','haUrl':'http://ha.test:8123'},'config':{'pages':[b.fan_page()]},'device':{'iconSize':48,'clockFace':'analog','screensaver':{'after':60,'password':'secret'}}}
+ def snapshot(self):return {'settings':{'githubRepo':'soso8782/aurelvi-apk','githubAsset':'','haToken':'secret','password':'secret','haUrl':'http://ha.test:8123'},'config':{'pages':[b.fan_page()]},'device':{'iconSize':48,'clockFace':'analog','screensaver':{'after':60,'password':'secret'}}}
  async def test_initial_snapshot_adopts_existing_pages_and_public_settings(self):
-  await self.hub.import_panel_settings('test',self.snapshot());p=self.hub.panels['test'];self.assertEqual(p['config']['pages'][0]['type'],'fan');self.assertEqual(p['device']['iconSize'],48);self.assertEqual(p['device']['clockFace'],'analog');self.assertEqual(self.hub.settings['githubRepo'],'sonics007/aurelvi-apk');self.assertNotIn('haToken',str(p));self.assertNotIn('secret',str(p));self.assertEqual(p['configSource'],'panel')
+  await self.hub.import_panel_settings('test',self.snapshot());p=self.hub.panels['test'];self.assertEqual(p['config']['pages'][0]['type'],'fan');self.assertEqual(p['device']['iconSize'],48);self.assertEqual(p['device']['clockFace'],'analog');self.assertEqual(self.hub.settings['githubRepo'],'soso8782/aurelvi-apk');self.assertNotIn('haToken',str(p));self.assertNotIn('secret',str(p));self.assertEqual(p['configSource'],'panel')
  async def test_new_pair_does_not_send_empty_default_configuration(self):
   self.hub.panels['test'].pop('configSource');self.hub.panels['test']['paired']=False
   await self.hub.add('test','Room');self.assertFalse(any('/config/' in topic for topic,_,_ in self.hass.mqtt));self.assertTrue(any(topic.endswith('/cmd/info') for topic,_,_ in self.hass.mqtt))

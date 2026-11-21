@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'INSTALL_FAILED'):self.execute('install')
         self.assertFalse(any(c.startswith('am start') for c in Device.instances[-1].commands));self.assertTrue(Device.instances[-1].closed)
     def test_download_integrity(self):
-        payload=b'APK';asset={'name':'Aurelvi-0.3.4.apk','browser_download_url':'https://github.com/sonics007/aurelvi-apk/releases/download/v0.3.4/Aurelvi-0.3.4.apk','digest':'sha256:'+hashlib.sha256(payload).hexdigest(),'size':3}
+        payload=b'APK';asset={'name':'Aurelvi-0.3.4.apk','browser_download_url':'https://github.com/soso8782/aurelvi-apk/releases/download/v0.3.4/Aurelvi-0.3.4.apk','digest':'sha256:'+hashlib.sha256(payload).hexdigest(),'size':3}
         def run(blob):
             replies=iter([json.dumps({'assets':[asset]}).encode(),blob])
             with patch.object(adb,'urlopen',lambda *a,**kw:io.BytesIO(next(replies))):return adb.download_apk(str(Path(self.tmp.name)/'file.apk'))

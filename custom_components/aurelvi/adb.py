@@ -96,7 +96,7 @@ def text_command(text):
 def download_apk(path):
     """Resolve only the official stable public Aurelvi release, bounded in size."""
     headers = {"User-Agent": "Aurelvi-ADB", "Accept": "application/vnd.github+json"}
-    with urlopen(Request("https://api.github.com/repos/sonics007/aurelvi-apk/releases/latest", headers=headers), timeout=30) as response:
+    with urlopen(Request("https://api.github.com/repos/soso8782/aurelvi-apk/releases/latest", headers=headers), timeout=30) as response:
         raw = response.read(1048577)
     if len(raw) > 1048576:
         raise ValueError(msg('backend.adb.release_too_large'))
@@ -108,7 +108,7 @@ def download_apk(path):
         raise ValueError(msg('backend.adb.release_asset_count'))
     asset = assets[0]
     url = asset.get("browser_download_url", "")
-    if not re.fullmatch(r"https://github\.com/sonics007/aurelvi-apk/releases/download/[^/]+/Aurelvi-[0-9.]+\.apk", url):
+    if not re.fullmatch(r"https://github\.com/soso8782/aurelvi-apk/releases/download/[^/]+/Aurelvi-[0-9.]+\.apk", url):
         raise ValueError(msg('backend.adb.invalid_download_url'))
     digest = asset.get("digest", "")
     if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):

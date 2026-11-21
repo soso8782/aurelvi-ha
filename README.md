@@ -17,7 +17,7 @@ Local MQTT integration and Aurelvi Studio for Android wall panels. Studio follow
 
 ## Install or update
 
-1. Download **aurelvi.zip** from [the latest release](https://github.com/sonics007/aurelvi-ha/releases/latest).
+1. Download **aurelvi.zip** from [the latest release](https://github.com/soso8782/aurelvi-ha/releases/latest).
 2. Extract it and copy the **aurelvi** folder to **/config/custom_components/aurelvi**. Always keep this folder name; version numbers belong in the manifest and release tag.
 3. Restart Home Assistant. For an update, keep the existing integration entry.
 4. For a first installation, use Settings → Devices & services → Add integration → Aurelvi.
@@ -25,7 +25,7 @@ Local MQTT integration and Aurelvi Studio for Android wall panels. Studio follow
 
 MQTT must already be configured in Home Assistant. Connect the panel to the same broker using WebSockets and select **Aurelvi** mode. Local integration icons/logos require Home Assistant **2026.3 or newer**.
 
-HACS: add `https://github.com/sonics007/aurelvi-ha` as a custom repository of type **Integration**. This is not a listing in the default HACS catalog.
+HACS: add `https://github.com/soso8782/aurelvi-ha` as a custom repository of type **Integration**. This is not a listing in the default HACS catalog.
 
 ## Version 0.3.10 — Fan and light settings
 
@@ -74,7 +74,7 @@ APK 0.3.4 adds four alarm tones, preview, volume and optional fade-in. Its bird 
 - Cover rocker with open/stop/close controls; standard notification entity and illuminance sensor.
 - `aurelvi_notification` events for `shown`, `dismissed`, `expired` and `action` status.
 
-APK: [public signed releases](https://github.com/sonics007/aurelvi-apk/releases/latest).
+APK: [public signed releases](https://github.com/soso8782/aurelvi-apk/releases/latest).
 
 ## Automatický reštart panelu (watchdog)
 
