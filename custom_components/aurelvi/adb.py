@@ -89,12 +89,15 @@ async def async_service(hub, data):
     return result
 
 
-async def async_install_latest(hub, pid):
+async def async_install_latest(hub, pid, progress_id=None):
     """Install the official APK on a paired panel through its ADB connection."""
     if not hub.panels.get(pid, {}).get("paired"):
         raise ValueError(msg("backend.adb.unknown_panel"))
     host, port = resolve_endpoint(hub, pid)
-    result = await async_command(hub, {"operation": "install", "host": host, "port": port})
+    request = {"operation": "install", "host": host, "port": port}
+    if progress_id is not None:
+        request["progress_id"] = progress_id
+    result = await async_command(hub, request)
     await remember_endpoint(hub, pid, {"host": host, "port": port})
     return result
 
@@ -111,7 +114,7 @@ def reject_unauthorized_install(_transport):
     raise ValueError(msg("backend.adb.install_needs_authorization"))
 
 
-def download_apk(path):
+def download_apk(path, progress=None):
     """Resolve only the official stable public Aurelvi release, bounded in size."""
     headers = {"User-Agent": "Aurelvi-ADB", "Accept": "application/vnd.github+json"}
     with urlopen(Request(f"https://api.github.com/repos/{APK_REPOSITORY}/releases/latest", headers=headers), timeout=30) as response:
@@ -133,6 +136,9 @@ def download_apk(path):
         raise ValueError(msg('backend.adb.no_checksum'))
     checksum = hashlib.sha256()
     size = 0
+    expected_size = asset.get("size")
+    measured = progress and type(expected_size) is int and 0 < expected_size <= MAX_APK
+    last_percent = -1
     with urlopen(Request(url, headers={"User-Agent": "Aurelvi-ADB"}), timeout=45) as response, open(path, "wb") as out:
         while chunk := response.read(65536):
             size += len(chunk)
@@ -140,12 +146,19 @@ def download_apk(path):
                 raise ValueError(msg('backend.adb.apk_too_large'))
             checksum.update(chunk)
             out.write(chunk)
-    if not size or size != asset.get("size") or checksum.hexdigest() != digest[7:]:
+            if measured:
+                percent = min(99, size * 100 // expected_size)
+                if percent != last_percent:
+                    progress(percent)
+                    last_percent = percent
+    if not size or size != expected_size or checksum.hexdigest() != digest[7:]:
         raise ValueError(msg('backend.adb.apk_mismatch'))
+    if progress:
+        progress(100)
     return asset["name"]
 
 
-def execute(key_path, host, port, operation, data):
+def execute(key_path, host, port, operation, data, progress=None):
     from adb_shell.adb_device import AdbDeviceTcp
     from adb_shell.auth.keygen import keygen
     from adb_shell.auth.sign_pythonrsa import PythonRSASigner
@@ -186,18 +199,39 @@ def execute(key_path, host, port, operation, data):
             with tempfile.TemporaryDirectory(prefix="aurelvi-apk-") as folder:
                 local = str(Path(folder) / "aurelvi.apk")
                 try:
-                    name = download_apk(local)
+                    if progress:
+                        progress("download")
+                        name = download_apk(local, lambda percent: progress("download", percent))
+                    else:
+                        name = download_apk(local)
                 except OSError as err:
                     raise ValueError(msg("backend.adb.download_failed", error=type(err).__name__)) from err
                 remote = "/data/local/tmp/aurelvi-update.apk"
+                transferred = 0
+                last_percent = 0
+
+                def report_transfer(_path, chunk_size, total_size):
+                    nonlocal transferred, last_percent
+                    transferred += chunk_size
+                    if total_size > 0:
+                        percent = min(99, transferred * 100 // total_size)
+                        if percent != last_percent:
+                            progress("transfer", percent)
+                            last_percent = percent
+
                 try:
                     # adb-shell applies the TCP timeout before the overall read
                     # deadline. Android may stay quiet while copying or installing.
                     try:
+                        if progress:
+                            progress("transfer", 0)
                         device.push(local, remote, transport_timeout_s=APK_TRANSFER_TIMEOUT,
-                                    read_timeout_s=APK_TRANSFER_TIMEOUT)
+                                    read_timeout_s=APK_TRANSFER_TIMEOUT,
+                                    progress_callback=report_transfer if progress else None)
                     except timeout_errors as err:
                         raise ValueError(msg("backend.adb.transfer_timeout", seconds=APK_TRANSFER_TIMEOUT)) from err
+                    if progress:
+                        progress("install")
                     try:
                         output = device.shell("pm install -r " + remote, transport_timeout_s=APK_INSTALL_TIMEOUT,
                                               read_timeout_s=APK_INSTALL_TIMEOUT, timeout_s=APK_INSTALL_TIMEOUT)
@@ -205,6 +239,8 @@ def execute(key_path, host, port, operation, data):
                         raise ValueError(msg("backend.adb.install_timeout", seconds=APK_INSTALL_TIMEOUT)) from err
                     if not any(line.strip() == "Success" for line in output.splitlines()) or "Failure" in output:
                         raise ValueError(msg('backend.adb.install_failed', output=output[:1000]))
+                    if progress:
+                        progress("launch")
                     try:
                         launch = device.shell(COMMANDS["launch"], read_timeout_s=20)
                     except Exception as err:
@@ -243,6 +279,9 @@ async def async_command(hub, data):
     if operation not in COMMANDS and operation not in {"text", "install"}:
         raise ValueError(msg('backend.adb.unsupported_operation'))
     host, port = endpoint(data)
+    progress_id = data.get("progress_id") if operation == "install" else None
+    if progress_id is not None and (not isinstance(progress_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", progress_id)):
+        raise ValueError(msg("backend.adb.invalid_progress_id"))
     if operation == "text":
         text_command(data.get("text"))
     if not hasattr(hub, "adb_lock"):
@@ -251,12 +290,25 @@ async def async_command(hub, data):
         if hub.adb_lock.locked():
             raise ValueError(msg('backend.adb.busy'))
         async with hub.adb_lock:
+            report = None
+            if progress_id:
+                loop = asyncio.get_running_loop()
+                progress = {"id": progress_id, "phase": "connect", "percent": None}
+                hub.adb_install_progress = progress
+
+                def report(phase, percent=None):
+                    loop.call_soon_threadsafe(progress.update, {"phase": phase, "percent": percent})
+
             try:
-                return await hub.hass.async_add_executor_job(execute, hub.hass.config.path(".storage", "aurelvi_adbkey"), host, port, operation, data)
+                return await hub.hass.async_add_executor_job(execute, hub.hass.config.path(".storage", "aurelvi_adbkey"),
+                                                             host, port, operation, data, report)
             except ValueError:
                 raise
             except Exception as err:
                 raise ValueError(msg('backend.adb.connection_failed', error=type(err).__name__)) from err
+            finally:
+                if progress_id:
+                    hub.adb_install_progress = None
 
     # Keep the device locked until the executor finishes, even if Studio disconnects.
     job = asyncio.create_task(run())

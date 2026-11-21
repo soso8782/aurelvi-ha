@@ -4,11 +4,12 @@ require('./studio-locale.cjs')(w);
 w.eval(fs.readFileSync(__dirname+'/../custom_components/aurelvi/frontend/studio.js','utf8'));
 const studio=w.document.createElement('aurelvi-studio');
 const store={version:'0.3.5',panels:[],timers:{},settings:{},latest:{},logs:[]};
-let fail=false,release;
+let fail=false,release,phaseProgress;
 const hass={language:'en',states:{},callWS:async msg=>{
   calls.push(msg);
   if(msg.action==='list')return structuredClone(store);
   if(fail)throw Error('Connection denied');
+  if(msg.action==='adb_install_progress')return phaseProgress;
   if(msg.action==='install_adb_update'){
     await new Promise(r=>release=r);
     return {output:'backend.adb.installed|{"name":"Aurelvi-0.3.17.apk"}'};
@@ -18,12 +19,29 @@ const hass={language:'en',states:{},callWS:async msg=>{
 }};
 studio.hass=hass;w.document.body.append(studio);
 const tick=()=>new Promise(r=>setImmediate(r));
+const until=async predicate=>{
+  for(let tries=0;tries<40;tries++){
+    if(predicate())return;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  assert.fail('Expected the progress indicator to update');
+};
 const button=name=>[...studio.shadowRoot.querySelectorAll('.modal button')].find(b=>b.textContent===name);
 const change=(name,value)=>{const el=[...studio.shadowRoot.querySelectorAll('.modal .field')].find(n=>n.querySelector('span').textContent===name).querySelector('input');el.value=value;el.dispatchEvent(new w.Event('change'));};
 (async()=>{
 await studio.load();assert([...studio.shadowRoot.querySelectorAll('.top button')].some(b=>b.textContent==='Setup / Update'),'setup available before first panel pairing');
 studio.adbDialog();assert(button('Install latest Aurelvi APK').disabled);change('Panel IP address','192.168.1.231');button('Connect / test ADB').click();await tick();assert(!button('Install latest Aurelvi APK').disabled);assert.equal(calls.at(-1).data.host,'192.168.1.231');assert.equal(calls.at(-1).data.port,5555);
-button('Install latest Aurelvi APK').click();await tick();assert(button('Reboot').disabled);release();await tick();assert(!button('Reboot').disabled);
+phaseProgress={phase:'download',percent:40};
+button('Install latest Aurelvi APK').click();
+await tick();
+assert(button('Reboot').disabled);
+const dialogProgress=studio.shadowRoot.querySelector('.modal progress');
+await until(()=>dialogProgress.value===40);
+assert(!dialogProgress.hidden);
+release();
+await tick();
+assert(!button('Reboot').disabled);
+assert(dialogProgress.hidden);
 change('Panel IP address','192.168.1.232');assert(button('Reboot').disabled,'editing target resets tested status');
 fail=true;button('Connect / test ADB').click();await tick();assert(button('Install latest Aurelvi APK').disabled);assert.equal(studio.shadowRoot.querySelector('.modal .notice.error').textContent,'Connection denied');
 button('Close').click();hass.language='sk';studio.hass=hass;await studio.i18nReady;studio.adbDialog();assert(button('Pripojiť / overiť ADB'));assert(button('Nainštalovať najnovšiu Aurelvi APK'));assert(button('Obnoviť domovskú aplikáciu Androidu'));
@@ -38,14 +56,25 @@ const manageButtons=[...studio.shadowRoot.querySelectorAll('button')];
 const install=manageButtons.find(b=>b.textContent==='Nainštalovať APK cez ADB');
 assert(install);
 assert(!manageButtons.some(b=>b.textContent==='Stiahnuť APK na panel'));
+phaseProgress={phase:'transfer',percent:63};
 install.click();
 await tick();
 assert(install.disabled);
 assert.equal(calls.at(-1).action,'install_adb_update');
 assert.equal(calls.at(-1).panel_id,'panel');
+const progressId=calls.at(-1).data.progress_id;
+const bar=studio.shadowRoot.querySelector('section progress');
+await until(()=>bar.value===63);
+assert(!bar.hidden);
+assert.equal(calls.findLast(call=>call.action==='adb_install_progress').data.progress_id,progressId);
+assert(studio.shadowRoot.textContent.includes('Prenášam APK na panel · 63 %'));
+phaseProgress={phase:'install',percent:null};
+await until(()=>!bar.hasAttribute('value'));
+assert(studio.shadowRoot.textContent.includes('Android inštaluje APK'));
 release();
 await tick();
 assert(!install.disabled);
+assert(bar.hidden);
 assert(studio.shadowRoot.textContent.includes('Aurelvi-0.3.17.apk nainštalované'));
 studio.adbDialog();
 button('Pripojiť / overiť ADB').click();

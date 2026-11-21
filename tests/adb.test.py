@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
         with patch.object(adb,'download_apk',download):result=self.execute('install')
         self.assertIn('installed',result['output']);d=Device.instances[-1]
         self.assertEqual(d.commands,['pm install -r /data/local/tmp/aurelvi-update.apk','am start -n sk.openpanel.nspanel/.MainActivity','rm -f /data/local/tmp/aurelvi-update.apk']);self.assertTrue(d.closed)
-        self.assertEqual(d.push_options, {'transport_timeout_s': 120, 'read_timeout_s': 120})
+        self.assertEqual(d.push_options, {'transport_timeout_s': 120, 'read_timeout_s': 120, 'progress_callback': None})
         self.assertEqual(d.shell_options[d.commands[0]], {
             'transport_timeout_s': 180, 'read_timeout_s': 180, 'timeout_s': 180,
         })
@@ -96,6 +96,52 @@ class Tests(unittest.TestCase):
                     'rm -f /data/local/tmp/aurelvi-update.apk',
                 ])
                 self.assertTrue(device.closed)
+
+    def test_install_progress_uses_actual_bytes_and_indeterminate_android_stage(self):
+        payload = b'x' * 131072
+        asset = {'name': 'Aurelvi-0.3.17.apk', 'size': len(payload), 'digest': 'sha256:' + hashlib.sha256(payload).hexdigest(),
+                 'browser_download_url': 'https://github.com/soso8782/aurelvi-apk/releases/download/v0.3.17/Aurelvi-0.3.17.apk'}
+        replies = iter([json.dumps({'assets': [asset]}).encode(), payload])
+        events = []
+        def report(phase, percent=None):
+            events.append((phase, percent))
+
+        def push(device, local, remote, *, progress_callback, **_timeouts):
+            self.assertEqual(Path(local).stat().st_size, len(payload))
+            for chunk in (32768, 32768, 65536):
+                progress_callback(remote, chunk, len(payload))
+
+        with patch.object(adb, 'urlopen', lambda *a, **kw: io.BytesIO(next(replies))), patch.object(Device, 'push', push):
+            adb.execute(self.key, '192.168.1.231', 5555, 'install', {}, report)
+        self.assertEqual(events, [
+            ('download', None), ('download', 50), ('download', 99), ('download', 100),
+            ('transfer', 0), ('transfer', 25), ('transfer', 50), ('transfer', 99),
+            ('install', None), ('launch', None),
+        ])
+
+    def test_progress_is_available_while_the_adb_worker_is_running(self):
+        async def run():
+            started = asyncio.Event()
+            finish = asyncio.Event()
+            async def executor(*args):
+                args[-1]('transfer', 63)
+                await asyncio.sleep(0)
+                started.set()
+                await finish.wait()
+                return {'output': 'done'}
+
+            hass = types.SimpleNamespace(async_add_executor_job=executor, config=types.SimpleNamespace(path=lambda *args: self.key))
+            hub = self.hub(hass=hass)
+            task = asyncio.create_task(adb.async_command(hub, {'operation': 'install', 'host': '192.168.1.2',
+                                                               'progress_id': 'progress-test'}))
+            await started.wait()
+            try:
+                self.assertEqual(hub.adb_install_progress, {'id': 'progress-test', 'phase': 'transfer', 'percent': 63})
+            finally:
+                finish.set()
+                self.assertEqual(await task, {'output': 'done'})
+            self.assertIsNone(hub.adb_install_progress)
+        asyncio.run(run())
     def test_failed_install_does_not_launch(self):
         with patch.object(Device,'fail_install',True),patch.object(adb,'download_apk',lambda path:Path(path).write_bytes(b'APK')):
             with self.assertRaisesRegex(ValueError,'INSTALL_FAILED'):self.execute('install')

@@ -96,6 +96,17 @@ class Lifecycle(unittest.IsolatedAsyncioTestCase):
    self.hass.auth.async_get_user.return_value.is_admin = True
    await panel_update.async_install()
    install.assert_awaited_once_with(hub, 'room')
+ async def test_adb_install_progress_is_scoped_to_the_requested_install(self):
+  await integration.async_setup(self.hass, {})
+  await integration.async_setup_entry(self.hass, self.entry)
+  hub = self.entry.runtime_data
+  hub.adb_install_progress = {'id': 'active-install', 'phase': 'transfer', 'percent': 37}
+  client = Connection()
+  await integration.ws_command(self.hass, client, {'id': 1, 'action': 'adb_install_progress',
+                                                  'data': {'progress_id': 'other-install'}})
+  await integration.ws_command(self.hass, client, {'id': 2, 'action': 'adb_install_progress',
+                                                  'data': {'progress_id': 'active-install'}})
+  self.assertEqual(client.results, [(1, None), (2, hub.adb_install_progress)])
  async def test_flow_reuses_existing_mqtt(self):
   f=flow.AurelviConfigFlow();f.hass=self.hass;f.existing=[];self.assertEqual((await f.async_step_user())['type'],'form');self.assertEqual((await f.async_step_user({}))['type'],'create_entry');self.assertEqual(f.unique,'aurelvi')
  async def test_flow_mqtt_required(self):

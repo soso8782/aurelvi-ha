@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.22
+
+- Show live ADB installation stages in both Studio install controls, with measured download and transfer percentages. Android installation and launch report their current stage.
+
 ## 0.3.21
 
 - Give ADB transfers and Android package installation their own TCP timeouts, instead of using the 15-second connection timeout.

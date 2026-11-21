@@ -105,7 +105,10 @@ async def ws_command(hass,connection,msg):
         elif action=='check_update':await hub.check_releases();result=hub.latest
         elif action=='install_adb_update':
             from .adb import async_install_latest
-            result=await async_install_latest(hub,pid)
+            result=await async_install_latest(hub,pid,data.get('progress_id'))
+        elif action=='adb_install_progress':
+            progress=getattr(hub,'adb_install_progress',None)
+            result=dict(progress) if progress and progress['id']==data.get('progress_id') else None
         elif action=='install_update':
             if not hub.latest.get('url'):raise ValueError(tr('backend.ws.no_apk'))
             await hub.command(pid,'update',{'url':hub.latest['url']});result=True
