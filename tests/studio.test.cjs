@@ -10,6 +10,31 @@ function change(label,value){let input=field(label);if(input.type==='checkbox')i
 let count=0;async function test(name,fn){await fn();count++;console.log('PASS '+name);}
 (async()=>{await studio.load();
 await test('Studio registers as HA web component and shows panel',()=>{assert(studio.shadowRoot.textContent.includes('Obývačka'));assert(studio.shadowRoot.querySelector('iframe'));assert(calls.some(c=>c.type==='aurelvi/command'));});
+await test('Studio always offers a dashboard link and protects unsaved work', () => {
+  const loading = w.document.createElement('aurelvi-studio');
+  w.document.body.append(loading);
+  try {
+    assert.equal(loading.shadowRoot.querySelector('header .studio-return').getAttribute('href'), '/');
+    const link = studio.shadowRoot.querySelector('header .studio-return');
+    assert.equal(link.href, 'https://ha.test/');
+    assert.match(link.textContent, /Späť do Home Assistanta/);
+    const confirm = w.confirm;
+    let prompt;
+    studio.dirty = true;
+    w.confirm = (message) => { prompt = message; return false; };
+    try {
+      const click = new w.MouseEvent('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(click);
+      assert(click.defaultPrevented);
+      assert.equal(prompt, 'Opustiť neuložené zmeny?');
+    } finally {
+      studio.dirty = false;
+      w.confirm = confirm;
+    }
+  } finally {
+    loading.remove();
+  }
+});
 await test('Entity selectors contain HA entities without HTML injection',()=>{assert(studio.shadowRoot.querySelector('option[value="fan.ceiling"]'));store.panels[0].name='<img src=x>';studio.data=structuredClone(store);studio.render();assert(studio.shadowRoot.textContent.includes('<img src=x>'));assert(!studio.shadowRoot.querySelector('img[src="x"]'));});
 await test('Changing speed count redraws 3 configurable speeds',()=>{change('Počet rýchlostí','3');assert.equal(studio.draft.pages[0].fan.speeds.length,3);assert(studio.dirty);});
 await test('Draft undo preserves previous six speeds',()=>{let undo=studio.undo.pop();studio.draft=undo.config;studio.device=undo.device;studio.render();assert.equal(studio.draft.pages[0].fan.speeds.length,6);});

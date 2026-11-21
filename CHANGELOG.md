@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.19
+
+- Add a permanent return link to the Home Assistant dashboard in Studio. It is available on phones even while Studio is loading or the Home Assistant sidebar is hidden.
+
 ## 0.3.18
 
 - Install the latest official APK directly from Studio over authorized network ADB. The Home Assistant update entity uses the same path for the official APK repository.

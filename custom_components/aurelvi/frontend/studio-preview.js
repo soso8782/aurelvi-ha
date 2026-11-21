@@ -15,6 +15,7 @@
     },
     subscribe: function () {},
     unsubscribe: function () {},
+    close: function () {},
   });
   document.body.classList.add("studio-preview");
   document.getElementById("menu").disabled = true;

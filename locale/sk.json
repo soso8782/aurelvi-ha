@@ -537,6 +537,7 @@
   "studio.app.add_panel_button": "+ Pridať panel",
   "studio.app.add_this_panel": "Pridať tento panel",
   "studio.app.add_your_first_panel": "Pridať prvý panel",
+  "studio.app.back_to_home_assistant": "Späť do Home Assistanta",
   "studio.app.advanced": "Pokročilé",
   "studio.app.build_controls_for_an_entire": "Vytvor ovládanie celej miestnosti",
   "studio.app.choose_a_home_assistant_room": "Vyber miestnosť z HA. Aurelvi navrhne stránky podľa jej zariadení; pred uložením ich môžeš upraviť.",
