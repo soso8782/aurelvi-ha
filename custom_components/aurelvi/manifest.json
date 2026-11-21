@@ -1,7 +1,7 @@
 {
   "domain": "aurelvi",
   "name": "Aurelvi",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "config_flow": true,
   "single_config_entry": true,
   "dependencies": [

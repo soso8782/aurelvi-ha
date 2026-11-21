@@ -7,6 +7,12 @@
 
 # Changelog
 
+## 0.3.16
+
+- Integration icon and logo shown in Home Assistant (local `brand/` images, Home Assistant 2026.3 or newer; light and dark variants).
+- Restored bundled assets after the repository recovery: Sendspin and JsSIP bundles, panel sounds and material textures (see RECOVERY.md).
+- APK updates come from `soso8782/aurelvi-apk`; APK 0.3.15 is signed with the new Aurelvi Release key.
+
 ## 0.3.15
 
 - Panels running an older APK (0.3.12 and earlier) show control errors as readable text again instead of `backend.…` keys: `sys/ack` carries ready-made text in `message` (in the panel's language) and the translatable key in `messageKey`, which newer panels use.
