@@ -7,6 +7,11 @@
 
 # Changelog
 
+## 0.3.21
+
+- Give ADB transfers and Android package installation their own TCP timeouts, instead of using the 15-second connection timeout.
+- Report whether a timeout occurred while transferring the APK or while waiting for the Android installer.
+
 ## 0.3.20
 
 - Reuse the saved ADB host and port in Studio's Setup / Update dialog.

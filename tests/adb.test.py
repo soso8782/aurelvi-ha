@@ -22,14 +22,15 @@ adb=importlib.util.module_from_spec(spec);sys.modules['aurelvi_pkg.adb']=adb;spe
 class Device:
     instances=[]
     fail_install=False
-    def __init__(self,*a,**kw):self.commands=[];self.closed=False;self.instances.append(self)
+    def __init__(self,*a,**kw):self.commands=[];self.shell_options={};self.closed=False;self.instances.append(self)
     def connect(self,**kw):return True
     def shell(self,cmd,**kw):
         self.commands.append(cmd)
+        self.shell_options[cmd] = kw
         if cmd.startswith('pm install'):return 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]' if self.fail_install else 'Success'
         if 'query-activities' in cmd:return 'sk.openpanel.nspanel/.MainActivity\ncom.android.launcher3/.Launcher\n'
         return 'OK'
-    def push(self,local,remote,**kw):assert Path(local).exists();self.remote=remote
+    def push(self,local,remote,**kw):assert Path(local).exists();self.remote=remote;self.push_options=kw
     def close(self):self.closed=True
 
 class Tests(unittest.TestCase):
@@ -63,6 +64,38 @@ class Tests(unittest.TestCase):
         with patch.object(adb,'download_apk',download):result=self.execute('install')
         self.assertIn('installed',result['output']);d=Device.instances[-1]
         self.assertEqual(d.commands,['pm install -r /data/local/tmp/aurelvi-update.apk','am start -n sk.openpanel.nspanel/.MainActivity','rm -f /data/local/tmp/aurelvi-update.apk']);self.assertTrue(d.closed)
+        self.assertEqual(d.push_options, {'transport_timeout_s': 120, 'read_timeout_s': 120})
+        self.assertEqual(d.shell_options[d.commands[0]], {
+            'transport_timeout_s': 180, 'read_timeout_s': 180, 'timeout_s': 180,
+        })
+
+    def test_install_timeout_reports_the_failed_stage_and_does_not_reinstall(self):
+        def download(path):
+            Path(path).write_bytes(b'APK')
+            return 'Aurelvi-0.3.17.apk'
+
+        original_shell = Device.shell
+
+        def slow_install(device, command, **options):
+            if command.startswith('pm install'):
+                device.commands.append(command)
+                raise TcpTimeoutException('no install result')
+            return original_shell(device, command, **options)
+
+        with patch.object(adb, 'download_apk', download):
+            with patch.object(Device, 'push', side_effect=TcpTimeoutException('no transfer acknowledgment')):
+                with self.assertRaisesRegex(ValueError, 'backend.adb.transfer_timeout'):
+                    self.execute('install')
+                self.assertEqual(Device.instances[-1].commands, ['rm -f /data/local/tmp/aurelvi-update.apk'])
+            with patch.object(Device, 'shell', slow_install):
+                with self.assertRaisesRegex(ValueError, 'backend.adb.install_timeout'):
+                    self.execute('install')
+                device = Device.instances[-1]
+                self.assertEqual(device.commands, [
+                    'pm install -r /data/local/tmp/aurelvi-update.apk',
+                    'rm -f /data/local/tmp/aurelvi-update.apk',
+                ])
+                self.assertTrue(device.closed)
     def test_failed_install_does_not_launch(self):
         with patch.object(Device,'fail_install',True),patch.object(adb,'download_apk',lambda path:Path(path).write_bytes(b'APK')):
             with self.assertRaisesRegex(ValueError,'INSTALL_FAILED'):self.execute('install')

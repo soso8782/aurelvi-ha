@@ -28,6 +28,8 @@ COMMANDS = {
 }
 SERVICE_OPERATIONS = ("wake", "power", "back", "home", "launch", "reboot", "connect")
 MAX_APK = 64 * 1024 * 1024
+APK_TRANSFER_TIMEOUT = 120
+APK_INSTALL_TIMEOUT = 180
 
 
 def endpoint(data):
@@ -162,6 +164,7 @@ def execute(key_path, host, port, operation, data):
     signer = PythonRSASigner.FromRSAKeyPath(str(key))
     device = AdbDeviceTcp(host, port, default_transport_timeout_s=15)
     awaiting_authorization = False
+    timeout_errors = (AdbTimeoutError, TcpTimeoutException, TimeoutError)
 
     def mark_authorization_prompt(_transport):
         nonlocal awaiting_authorization
@@ -173,7 +176,7 @@ def execute(key_path, host, port, operation, data):
             connected = device.connect(rsa_keys=[signer], auth_timeout_s=15, read_timeout_s=20, auth_callback=auth_callback)
         except ConnectionRefusedError as err:
             raise ValueError(msg("backend.adb.port_refused", host=host, port=port)) from err
-        except (AdbTimeoutError, TcpTimeoutException, TimeoutError) as err:
+        except timeout_errors as err:
             if awaiting_authorization:
                 raise ValueError(msg("backend.adb.auth_pending")) from err
             raise ValueError(msg("backend.adb.connect_timeout", host=host, port=port)) from err
@@ -188,8 +191,18 @@ def execute(key_path, host, port, operation, data):
                     raise ValueError(msg("backend.adb.download_failed", error=type(err).__name__)) from err
                 remote = "/data/local/tmp/aurelvi-update.apk"
                 try:
-                    device.push(local, remote, read_timeout_s=120)
-                    output = device.shell("pm install -r " + remote, read_timeout_s=120)
+                    # adb-shell applies the TCP timeout before the overall read
+                    # deadline. Android may stay quiet while copying or installing.
+                    try:
+                        device.push(local, remote, transport_timeout_s=APK_TRANSFER_TIMEOUT,
+                                    read_timeout_s=APK_TRANSFER_TIMEOUT)
+                    except timeout_errors as err:
+                        raise ValueError(msg("backend.adb.transfer_timeout", seconds=APK_TRANSFER_TIMEOUT)) from err
+                    try:
+                        output = device.shell("pm install -r " + remote, transport_timeout_s=APK_INSTALL_TIMEOUT,
+                                              read_timeout_s=APK_INSTALL_TIMEOUT, timeout_s=APK_INSTALL_TIMEOUT)
+                    except timeout_errors as err:
+                        raise ValueError(msg("backend.adb.install_timeout", seconds=APK_INSTALL_TIMEOUT)) from err
                     if not any(line.strip() == "Success" for line in output.splitlines()) or "Failure" in output:
                         raise ValueError(msg('backend.adb.install_failed', output=output[:1000]))
                     try:
