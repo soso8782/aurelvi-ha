@@ -1,6 +1,6 @@
 name: Restore JsSIP bundle
 # Added during the repository recovery (see RECOVERY.md): fetches the official
-# JsSIP 3.10.1 browser build from npm and commits it as frontend/jssip.min.js.
+# JsSIP 3.10.1 from npm, bundles it for the browser with esbuild (global JsSIP) and commits it as frontend/jssip.min.js.
 on:
   workflow_dispatch:
 permissions:
@@ -13,13 +13,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Download JsSIP 3.10.1 from npm
+      - name: Build JsSIP 3.10.1 browser bundle with esbuild
         run: |
-          mkdir -p "$RUNNER_TEMP/jssip" && cd "$RUNNER_TEMP/jssip"
-          npm pack jssip@3.10.1 --silent
-          tar -xzf jssip-3.10.1.tgz
-          ls package/dist
-          test -s package/dist/jssip.min.js
+          mkdir -p "$RUNNER_TEMP/jssip/package/dist" && cd "$RUNNER_TEMP/jssip"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund jssip@3.10.1 esbuild@0.25.5
+          printf "globalThis.JsSIP=require('jssip');\n" > entry.js
+          npx esbuild entry.js --bundle --minify --format=iife --platform=browser --target=chrome87 --legal-comments=inline --outfile=package/dist/jssip.min.js
+          test -s package/dist/jssip.min.js && ls -la package/dist
       - name: Check the bundle exposes the JsSIP global
         run: |
           node -e "
