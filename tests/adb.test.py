@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -50,7 +51,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(adb.text_command('hello world!'),'input text '+"'hello%sworld!'")
     def test_connect_key_persisted_private_and_transport_closed(self):
         self.execute('connect');key=Path(self.key).read_bytes();self.execute('wake')
-        self.assertEqual(key,Path(self.key).read_bytes());self.assertEqual(Path(self.key).stat().st_mode&0o777,0o600)
+        self.assertEqual(key,Path(self.key).read_bytes())
+        if os.name == 'posix':
+            self.assertEqual(Path(self.key).stat().st_mode & 0o777, 0o600)
         self.assertTrue(Device.instances[-1].closed);self.assertEqual(Device.instances[-1].commands,['input keyevent 224'])
     def test_restore_resolves_alternate_home(self):
         self.execute('unset_home');self.assertEqual(Device.instances[-1].commands[-1],'cmd package set-home-activity com.android.launcher3/.Launcher')
@@ -63,6 +66,27 @@ class Tests(unittest.TestCase):
         with patch.object(Device,'fail_install',True),patch.object(adb,'download_apk',lambda path:Path(path).write_bytes(b'APK')):
             with self.assertRaisesRegex(ValueError,'INSTALL_FAILED'):self.execute('install')
         self.assertFalse(any(c.startswith('am start') for c in Device.instances[-1].commands));self.assertTrue(Device.instances[-1].closed)
+    def test_install_stops_before_requesting_new_adb_authorization(self):
+        def unauthorized(device, **kwargs):
+            kwargs['auth_callback'](device)
+            self.fail('ADB enrollment would open a prompt on the panel')
+        with patch.object(Device, 'connect', unauthorized), patch.object(adb, 'download_apk') as download:
+            with self.assertRaisesRegex(ValueError, 'install_needs_authorization'):
+                self.execute('install')
+        download.assert_not_called()
+        self.assertTrue(Device.instances[-1].closed)
+
+    def test_install_reports_success_when_opening_the_app_fails(self):
+        def download(path):
+            Path(path).write_bytes(b'APK')
+            return 'Aurelvi-0.3.17.apk'
+        def launch_fails(device, command, **kwargs):
+            device.commands.append(command)
+            return 'Error: Activity not found' if command.startswith('am start') else 'Success'
+        with patch.object(adb, 'download_apk', download), patch.object(Device, 'shell', launch_fails):
+            self.assertIn('installed_launch_failed', self.execute('install')['output'])
+        self.assertTrue(Device.instances[-1].closed)
+
     def test_download_integrity(self):
         payload=b'APK';asset={'name':'Aurelvi-0.3.4.apk','browser_download_url':'https://github.com/soso8782/aurelvi-apk/releases/download/v0.3.4/Aurelvi-0.3.4.apk','digest':'sha256:'+hashlib.sha256(payload).hexdigest(),'size':3}
         def run(blob):
@@ -76,6 +100,31 @@ class Tests(unittest.TestCase):
         async def run():
             hub=types.SimpleNamespace(adb_lock=asyncio.Lock());await hub.adb_lock.acquire()
             with self.assertRaisesRegex(ValueError,'adb.busy'):await adb.async_command(hub,{'operation':'connect','host':'192.168.1.2'})
+        asyncio.run(run())
+
+    def test_cancelled_caller_keeps_adb_locked_until_install_finishes(self):
+        async def run():
+            started, release, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def executor(*args):
+                started.set()
+                await release.wait()
+                finished.set()
+                return {'output': 'Success'}
+            hass = types.SimpleNamespace(async_add_executor_job=executor, config=types.SimpleNamespace(path=lambda *args: self.key))
+            hub = self.hub(hass=hass)
+            data = {'operation': 'install', 'host': '192.168.1.2'}
+            first = asyncio.create_task(adb.async_command(hub, data))
+            await started.wait()
+            first.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await first
+            try:
+                with self.assertRaisesRegex(ValueError, 'adb.busy'):
+                    await adb.async_command(hub, data)
+            finally:
+                release.set()
+                await finished.wait()
+            self.assertFalse(hub.adb_lock.locked())
         asyncio.run(run())
 
     def hub(self,**kw):

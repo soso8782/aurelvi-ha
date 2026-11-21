@@ -7,6 +7,12 @@
 
 # Changelog
 
+## 0.3.18
+
+- Install the latest official APK directly from Studio over authorized network ADB. The Home Assistant update entity uses the same path for the official APK repository.
+- Authorize Home Assistant once in **Setup / Update**. Future installs keep app data and run without an installation prompt on the panel.
+- Keep APK 0.3.17 for this integration release.
+
 ## 0.3.17
 
 - Add a Home screen with favorite controls, page shortcuts and a status summary.

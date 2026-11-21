@@ -60,6 +60,8 @@ Open **Setup / Update** in the Studio header, including before the first panel i
 
 Install the latest stable official Aurelvi APK, open Aurelvi, set it as Home, restore another installed Android launcher, wake/sleep, Back, Home, notifications, memory information, reboot, or send basic Latin text. ADB commands run directly from HA using `adb-shell`; no add-on or terminal is required. APK installation verifies GitHub's SHA-256 digest, preserves data (`pm install -r`) and opens Aurelvi afterwards. Android/OEM restrictions may reject a command; the output is shown in the dialog.
 
+Once Home Assistant is authorized for network ADB, open **Studio → Manage → GitHub updates → Install APK via ADB**. Studio shows the result when the latest official APK finishes installing. Use **Setup / Update → Connect / test ADB** for the one-time authorization or if the panel forgets the connection.
+
 The RSA authorization key stays in HA's `.storage/aurelvi_adbkey`; it is not exposed in Studio, diagnostics or panel configuration. Only HA administrators can run these actions. Each action closes its ADB transport afterwards. **0.3.5 updates only the integration; APK 0.3.4 remains current.** Restart HA and check **Studio 0.3.5**; hard-refresh if needed.
 
 ## Version 0.3.4

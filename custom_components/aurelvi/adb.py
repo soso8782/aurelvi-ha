@@ -12,6 +12,7 @@ from .i18n import msg
 from urllib.request import Request, urlopen
 
 COMPONENT = "sk.openpanel.nspanel/.MainActivity"
+APK_REPOSITORY = "soso8782/aurelvi-apk"
 COMMANDS = {
     "wake": "input keyevent 224",
     "power": "input keyevent 26",
@@ -86,6 +87,16 @@ async def async_service(hub, data):
     return result
 
 
+async def async_install_latest(hub, pid):
+    """Install the official APK on a paired panel through its ADB connection."""
+    if not hub.panels.get(pid, {}).get("paired"):
+        raise ValueError(msg("backend.adb.unknown_panel"))
+    host, port = resolve_endpoint(hub, pid)
+    result = await async_command(hub, {"operation": "install", "host": host, "port": port})
+    await remember_endpoint(hub, pid, {"host": host, "port": port})
+    return result
+
+
 def text_command(text):
     # Android input text is ASCII-only; never pass shell syntax from the UI.
     if not isinstance(text, str) or not 1 <= len(text) <= 200 or not re.fullmatch(r"[A-Za-z0-9 .,!?@_+:/=-]+", text):
@@ -93,10 +104,15 @@ def text_command(text):
     return "input text " + shlex.quote(text.replace(" ", "%s"))
 
 
+def reject_unauthorized_install(_transport):
+    """Abort before adb-shell asks the device to authorize a new key."""
+    raise ValueError(msg("backend.adb.install_needs_authorization"))
+
+
 def download_apk(path):
     """Resolve only the official stable public Aurelvi release, bounded in size."""
     headers = {"User-Agent": "Aurelvi-ADB", "Accept": "application/vnd.github+json"}
-    with urlopen(Request("https://api.github.com/repos/soso8782/aurelvi-apk/releases/latest", headers=headers), timeout=30) as response:
+    with urlopen(Request(f"https://api.github.com/repos/{APK_REPOSITORY}/releases/latest", headers=headers), timeout=30) as response:
         raw = response.read(1048577)
     if len(raw) > 1048576:
         raise ValueError(msg('backend.adb.release_too_large'))
@@ -108,7 +124,7 @@ def download_apk(path):
         raise ValueError(msg('backend.adb.release_asset_count'))
     asset = assets[0]
     url = asset.get("browser_download_url", "")
-    if not re.fullmatch(r"https://github\.com/soso8782/aurelvi-apk/releases/download/[^/]+/Aurelvi-[0-9.]+\.apk", url):
+    if not re.fullmatch(rf"https://github\.com/{re.escape(APK_REPOSITORY)}/releases/download/[^/]+/Aurelvi-[0-9.]+\.apk", url):
         raise ValueError(msg('backend.adb.invalid_download_url'))
     digest = asset.get("digest", "")
     if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
@@ -145,19 +161,28 @@ def execute(key_path, host, port, operation, data):
     signer = PythonRSASigner.FromRSAKeyPath(str(key))
     device = AdbDeviceTcp(host, port, default_transport_timeout_s=15)
     try:
-        if not device.connect(rsa_keys=[signer], auth_timeout_s=15, read_timeout_s=20):
+        auth_callback = reject_unauthorized_install if operation == "install" else None
+        if not device.connect(rsa_keys=[signer], auth_timeout_s=15, read_timeout_s=20, auth_callback=auth_callback):
             raise ValueError(msg('backend.adb.auth_pending'))
         if operation == "install":
             with tempfile.TemporaryDirectory(prefix="aurelvi-apk-") as folder:
                 local = str(Path(folder) / "aurelvi.apk")
-                name = download_apk(local)
+                try:
+                    name = download_apk(local)
+                except OSError as err:
+                    raise ValueError(msg("backend.adb.download_failed", error=type(err).__name__)) from err
                 remote = "/data/local/tmp/aurelvi-update.apk"
                 try:
                     device.push(local, remote, read_timeout_s=120)
                     output = device.shell("pm install -r " + remote, read_timeout_s=120)
-                    if "Success" not in output:
+                    if not any(line.strip() == "Success" for line in output.splitlines()) or "Failure" in output:
                         raise ValueError(msg('backend.adb.install_failed', output=output[:1000]))
-                    device.shell(COMMANDS["launch"], read_timeout_s=20)
+                    try:
+                        launch = device.shell(COMMANDS["launch"], read_timeout_s=20)
+                    except Exception as err:
+                        return {"output": msg("backend.adb.installed_launch_failed", name=name, error=type(err).__name__)}
+                    if re.search(r"\b(?:Error|Exception)\b", launch):
+                        return {"output": msg("backend.adb.installed_launch_failed", name=name, error=launch[:500])}
                     return {"output": msg('backend.adb.installed', name=name)}
                 finally:
                     try:
@@ -194,12 +219,21 @@ async def async_command(hub, data):
         text_command(data.get("text"))
     if not hasattr(hub, "adb_lock"):
         hub.adb_lock = asyncio.Lock()
-    if hub.adb_lock.locked():
-        raise ValueError(msg('backend.adb.busy'))
-    async with hub.adb_lock:
-        try:
-            return await hub.hass.async_add_executor_job(execute, hub.hass.config.path(".storage", "aurelvi_adbkey"), host, port, operation, data)
-        except ValueError:
-            raise
-        except Exception as err:
-            raise ValueError(msg('backend.adb.connection_failed', error=type(err).__name__)) from err
+    async def run():
+        if hub.adb_lock.locked():
+            raise ValueError(msg('backend.adb.busy'))
+        async with hub.adb_lock:
+            try:
+                return await hub.hass.async_add_executor_job(execute, hub.hass.config.path(".storage", "aurelvi_adbkey"), host, port, operation, data)
+            except ValueError:
+                raise
+            except Exception as err:
+                raise ValueError(msg('backend.adb.connection_failed', error=type(err).__name__)) from err
+
+    # Keep the device locked until the executor finishes, even if Studio disconnects.
+    job = asyncio.create_task(run())
+    try:
+        return await asyncio.shield(job)
+    except asyncio.CancelledError:
+        job.add_done_callback(lambda finished: finished.exception() if not finished.cancelled() else None)
+        raise

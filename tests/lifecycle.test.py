@@ -2,6 +2,7 @@
 import asyncio,importlib.util,sys,types,unittest
 from enum import Enum
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 sys.path.insert(0,str(Path(__file__).parent))
 import importlib
 bridge=importlib.import_module('integration.test') if False else None
@@ -51,6 +52,50 @@ class Lifecycle(unittest.IsolatedAsyncioTestCase):
   await integration.async_setup(self.hass,{});await integration.async_setup_entry(self.hass,self.entry);c=Connection();await integration.ws_command(self.hass,c,{'id':1,'action':'add','panel_id':'room','data':{'name':'Room'}});self.assertTrue(c.results);await integration.ws_command(self.hass,c,{'id':2,'action':'save','panel_id':'room','data':{'config':{'pages':[ad.fan_page()]},'device':{},'revision':0}});self.assertEqual(c.results[-1][1]['revision'],1);await integration.async_unload_entry(self.hass,self.entry)
  async def test_reject_unknown_command(self):
   await integration.async_setup(self.hass,{});await integration.async_setup_entry(self.hass,self.entry);c=Connection();await integration.ws_command(self.hass,c,{'id':1,'action':'command','panel_id':'room','data':{'name':'arbitrary_install'}});self.assertEqual(c.errors[0][1],'invalid_request');await integration.async_unload_entry(self.hass,self.entry)
+ async def test_studio_adb_update_uses_the_paired_endpoint_even_if_mqtt_is_offline(self):
+  await integration.async_setup(self.hass, {})
+  await integration.async_setup_entry(self.hass, self.entry)
+  hub = self.entry.runtime_data
+  hub.panels['room'] = {'paired': True, 'adb': {'host': '192.168.1.10', 'port': 5556}}
+  hub.status['room'] = {'online': False}
+  client = Connection()
+  with patch('aurelvi_live.adb.async_command', new_callable=AsyncMock) as command:
+   command.return_value = {'output': 'installed'}
+   await integration.ws_command(self.hass, client, {'id': 1, 'action': 'install_adb_update',
+      'panel_id': 'room', 'data': {'host': '192.168.1.99'}})
+   command.assert_awaited_once_with(hub, {'operation': 'install', 'host': '192.168.1.10', 'port': 5556})
+   self.assertEqual(client.results, [(1, {'output': 'installed'})])
+   await integration.ws_command(self.hass, client, {'id': 2, 'action': 'install_adb_update',
+      'panel_id': 'unknown', 'data': {}})
+   self.assertEqual(client.errors[-1], (2, 'invalid_request', 'backend.adb.unknown_panel'))
+  self.assertFalse(any(topic.endswith('/cmd/update') for topic, _, _ in self.hass.mqtt))
+ async def test_official_update_entity_requires_an_administrator_for_adb(self):
+  update = module('homeassistant.components.update')
+  update.UpdateEntity = type('UpdateEntity', (), {})
+  update.UpdateEntityFeature = types.SimpleNamespace(INSTALL=1, RELEASE_NOTES=2)
+  entity = module('homeassistant.helpers.entity')
+  entity.Entity = type('Entity', (), {})
+  entity.DeviceInfo = dict
+  sys.modules['homeassistant.helpers.dispatcher'].async_dispatcher_connect = lambda *args: None
+  from aurelvi_live.update import PanelUpdate
+
+  await integration.async_setup(self.hass, {})
+  await integration.async_setup_entry(self.hass, self.entry)
+  hub = self.entry.runtime_data
+  hub.settings['githubRepo'] = 'Soso8782/Aurelvi-APK'
+  hub.latest = {'url': 'https://github.com/soso8782/aurelvi-apk/releases/download/v0.3.17/Aurelvi-0.3.17.apk'}
+  panel_update = PanelUpdate(hub, 'room')
+  panel_update.hass = self.hass
+  panel_update._context = types.SimpleNamespace(user_id='operator')
+  self.hass.auth = types.SimpleNamespace(async_get_user=AsyncMock(return_value=types.SimpleNamespace(is_admin=False)))
+  with patch('aurelvi_live.update.async_install_latest', new_callable=AsyncMock) as install:
+   with self.assertRaises(HomeAssistantError) as failure:
+    await panel_update.async_install()
+   self.assertEqual(failure.exception.translation_key, 'adb_failed')
+   install.assert_not_awaited()
+   self.hass.auth.async_get_user.return_value.is_admin = True
+   await panel_update.async_install()
+   install.assert_awaited_once_with(hub, 'room')
  async def test_flow_reuses_existing_mqtt(self):
   f=flow.AurelviConfigFlow();f.hass=self.hass;f.existing=[];self.assertEqual((await f.async_step_user())['type'],'form');self.assertEqual((await f.async_step_user({}))['type'],'create_entry');self.assertEqual(f.unique,'aurelvi')
  async def test_flow_mqtt_required(self):
