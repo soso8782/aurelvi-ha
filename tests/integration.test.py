@@ -73,6 +73,14 @@ class Integration(unittest.IsolatedAsyncioTestCase):
  async def event(self,button,value=None,event_id='e1',retain=False):
   await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/test/event',payload=json.dumps({'page':'fan','button':button,'action':'press','value':value,'eventId':event_id}),retain=retain))
  def call_data(self):return self.hass.calls[-1][:3]
+ async def test_clock_language_follows_home_assistant_unless_chosen(self):
+  self.hass.config=types.SimpleNamespace(language='sk')
+  await self.hub.push('test');device=[d for t,d,_ in self.hass.mqtt if t=='aurelvi/panel/test/config/device'][-1]
+  self.assertEqual(device['clockLanguage'],'sk-SK');self.assertNotIn('clockLanguage',self.hub.panels['test']['device'])
+  self.hub.panels['test']['device']['clockLanguage']='de-DE';await self.hub.push('test')
+  self.assertEqual([d for t,d,_ in self.hass.mqtt if t=='aurelvi/panel/test/config/device'][-1]['clockLanguage'],'de-DE')
+  self.hass.config=types.SimpleNamespace(language='pl');self.hub.panels['test']['device'].pop('clockLanguage');await self.hub.push('test')
+  self.assertEqual([d for t,d,_ in self.hass.mqtt if t=='aurelvi/panel/test/config/device'][-1]['clockLanguage'],'en-GB')
  async def test_alarm_fired_is_reported_whatever_page_is_shown(self):
   fired=[];sent=[];self.hass.bus.async_fire=lambda *a:fired.append(a)
   sys.modules['aurelvi_test.hub'].async_dispatcher_send=lambda *a:sent.append(a[1:])
