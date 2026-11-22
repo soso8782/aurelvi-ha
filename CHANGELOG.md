@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.27
+
+- A panel without a chosen clock language now follows Home Assistant's language (Slovak, Czech, German, Hungarian or Italian; English otherwise) for the date, weekday and panel labels such as "Set alarm". An explicit choice in Studio still wins.
+
 ## 0.3.26
 
 - Studio preview loads the panel scripts with the integration version, so after an update it never shows an old cached clock or page renderer.

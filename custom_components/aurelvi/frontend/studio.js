@@ -85,6 +85,9 @@ if(root.document&&DATA.mount!==false){if(root.document.readyState==='loading')ro
   const localeBase = "/aurelvi-static/locale";
   /* tr(key, vars) renders a studio.* / common.* key in the loaded language. */
   const tr = (key, vars) => window.AurelviI18n.t(key, vars, uiLanguage);
+  /* Same rule as the integration: an unset clock language follows Home Assistant's language. */
+  const defaultClockLanguage = () =>
+    ({ en: "en-GB", sk: "sk-SK", hu: "hu-HU", de: "de-DE", cs: "cs-CZ", it: "it-IT" })[String(language || "").split("-")[0].toLowerCase()] || "en-GB";
   /* Backend messages arrive as "backend.key" or "backend.key|{json params}"; unknown text is returned unchanged. */
   const trMessage = (message) => {
     if (typeof message !== "string") return message;
@@ -1600,7 +1603,7 @@ if(root.document&&DATA.mount!==false){if(root.document.readyState==='loading')ro
         [this.device.screensaver,"nightOffAfter",tr("studio.display.night_screen_off_after_s"),0,0,86400],
         [this.device,"clockDateSize",tr("studio.display.date_size_px"),13,8,32]];
       options.forEach(([object,key,label,fallback,min,max])=>this.field(extra,label,object[key]===undefined?fallback:object[key],v=>this.update(()=>object[key]=v),{type:"number",min,max}));
-      this.field(extra,tr("studio.display.clock_language"),this.device.clockLanguage||"en-GB",v=>this.update(()=>this.device.clockLanguage=v),{choices:["en-GB","sk-SK","hu-HU","de-DE","cs-CZ","it-IT"]});
+      this.field(extra,tr("studio.display.clock_language"),this.device.clockLanguage||defaultClockLanguage(),v=>this.update(()=>this.device.clockLanguage=v),{choices:["en-GB","sk-SK","hu-HU","de-DE","cs-CZ","it-IT"]});
       this.field(extra,tr("studio.display.clock_accent"),this.device.clockAccent||"#318743",v=>this.update(()=>this.device.clockAccent=v),{type:"color"});
       const clockThemes=[{value:"match-app",label:tr("studio.display.match_panel")},{value:"custom",label:tr("studio.display.custom_accent")},...skinChoices];
       this.field(extra,tr("studio.display.clock_page_theme"),this.device.clockTheme||"match-app",v=>this.update(()=>this.device.clockTheme=v),{choices:clockThemes});
@@ -2443,7 +2446,7 @@ if(root.document&&DATA.mount!==false){if(root.document.readyState==='loading')ro
       let payload = {
           type: "aurelvi-preview",
           config: this.draft,
-          device: this.device,
+          device: this.device.clockLanguage ? this.device : { ...this.device, clockLanguage: defaultClockLanguage() },
           states: mirrors,
           pageIndex: this.pageIndex,
           labels: { error: tr("studio.preview.error") },

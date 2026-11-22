@@ -24,6 +24,10 @@ from .const import DOMAIN, PREFIX, SIGNAL, SIGNAL_EVENT, VERSION
 from .models import actions, attribute_key, PROJECTED_ATTRIBUTES, finite_attribute, default_config, entities, entity_id, entity_key, mirror, number, panel_id, validate_config, validate_device
 
 _LOGGER=logging.getLogger(__name__)
+CLOCK_LANGUAGES={'en':'en-GB','sk':'sk-SK','hu':'hu-HU','de':'de-DE','cs':'cs-CZ','it':'it-IT'}
+def clock_language(language):
+    """Map an HA language such as 'sk' or 'de-AT' to a supported clock locale; English otherwise."""
+    return CLOCK_LANGUAGES.get(str(language or '').replace('_','-').split('-')[0].lower(),'en-GB')
 # Upper bound for panels that announced themselves on MQTT but were never paired.
 MAX_UNPAIRED=10
 
@@ -253,6 +257,8 @@ class Hub:
         if not p.get('paired'):return
         await self.publish(pid,'config/panels',p['config'],True)
         device=copy.deepcopy(p['device'])
+        # Without an explicit choice, the clock (and the panel UI) follow Home Assistant's language.
+        if not device.get('clockLanguage'):device['clockLanguage']=clock_language(getattr(getattr(self.hass,'config',None),'language',None))
         app=public_settings(self.settings)
         if app:device['appSettings']=app
         await self.publish(pid,'config/device',device,True)
