@@ -368,6 +368,95 @@
       });
       return e;
     }
+    // Original "atelier" dress-watch dials: sunburst dial, applied batons, faceted hands, date window.
+    var LUXURY_DIALS = {
+      "luxury-midnight": {dial: ["#2b4170", "#0a1324"], ray: "#ffffff", metal: ["#fbf0c6", "#d8b45c", "#8f6a1f", "#f0d98f"], facet: "#7a5a19", ink: "#e9d79f", second: "#b3202a", lume: "#f3efe1"},
+      "luxury-graphite": {dial: ["#44484e", "#121315"], ray: "#ffffff", metal: ["#ffffff", "#c3c9d0", "#6b737c", "#e4e8ec"], facet: "#5d646c", ink: "#dfe3e7", second: "#c7372f", lume: "#eef2ee"},
+      "luxury-ivory": {dial: ["#fbf6ea", "#e2d5b8"], ray: "#5b4520", metal: ["#fbf0c6", "#d1a94f", "#8a641c", "#eed58a"], facet: "#7a5714", ink: "#4a3a1c", second: "#1f3f78", lume: "#fffdf6"},
+    };
+    var luxurySerial = 0;
+    function luxuryClock(now, v, locale) {
+      // Gradient ids must be unique: Studio can show several dials in one document.
+      var uid = "lx" + ++luxurySerial + "-", C = 120, svg = svgElement("svg", {
+        viewBox: "0 0 240 240",
+        class: "analog-clock luxury-clock",
+        role: "img",
+        "aria-label": now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+      });
+      function add(parent, tag, attrs) { var e = svgElement(tag, attrs); parent.appendChild(e); return e; }
+      function polar(r, deg) { var a = (deg * Math.PI) / 180; return [C + r * Math.sin(a), C - r * Math.cos(a)]; }
+      var defs = add(svg, "defs", {});
+      var dial = add(defs, "radialGradient", { id: uid + "dial", cx: "50%", cy: "45%", r: "60%" });
+      add(dial, "stop", { offset: "0%", "stop-color": v.dial[0] });
+      add(dial, "stop", { offset: "100%", "stop-color": v.dial[1] });
+      var metal = add(defs, "linearGradient", { id: uid + "metal", x1: "0", y1: "0", x2: "1", y2: "1" });
+      v.metal.forEach(function (c, i) { add(metal, "stop", { offset: Math.round((i * 100) / (v.metal.length - 1)) + "%", "stop-color": c }); });
+      var glass = add(defs, "linearGradient", { id: uid + "glass", x1: "0", y1: "0", x2: "0", y2: "1" });
+      add(glass, "stop", { offset: "0%", "stop-color": "#ffffff", "stop-opacity": 0.11 });
+      add(glass, "stop", { offset: "100%", "stop-color": "#ffffff", "stop-opacity": 0 });
+      var shadow = add(defs, "filter", { id: uid + "shadow", x: "-20%", y: "-20%", width: "140%", height: "140%" });
+      add(shadow, "feDropShadow", { dx: 1.4, dy: 2.2, stdDeviation: 1.3, "flood-color": "#000000", "flood-opacity": 0.45 });
+      // Case, polished bezel, inner flange and dial.
+      add(svg, "circle", { cx: C, cy: C, r: 119, fill: "url(#" + uid + "metal)" });
+      add(svg, "circle", { cx: C, cy: C, r: 113.5, fill: "none", stroke: v.facet, "stroke-width": 0.8, opacity: 0.7 });
+      add(svg, "circle", { cx: C, cy: C, r: 112, fill: v.dial[1] });
+      add(svg, "circle", { cx: C, cy: C, r: 108, fill: "url(#" + uid + "dial)" });
+      var rays = add(svg, "g", { stroke: v.ray, "stroke-width": 0.5, opacity: 0.07 });
+      for (var r = 0; r < 120; r++) {
+        var a = polar(10, r * 3), b = polar(106, r * 3);
+        add(rays, "line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], opacity: r % 2 ? 0.45 : 1 });
+      }
+      // Railway minute track.
+      var track = add(svg, "g", { stroke: v.ink, "stroke-linecap": "round" });
+      add(svg, "circle", { cx: C, cy: C, r: 104.5, fill: "none", stroke: v.ink, "stroke-width": 0.4, opacity: 0.55 });
+      add(svg, "circle", { cx: C, cy: C, r: 99.5, fill: "none", stroke: v.ink, "stroke-width": 0.4, opacity: 0.55 });
+      for (var m = 0; m < 60; m++) {
+        if (m % 5 === 0) continue;
+        var p1 = polar(100, m * 6), p2 = polar(104, m * 6);
+        add(track, "line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], "stroke-width": 0.7, opacity: 0.8 });
+      }
+      // Applied faceted batons with a lume insert; doubled at 12, date window at 3.
+      var indices = add(svg, "g", { filter: "url(#" + uid + "shadow)" });
+      for (var h = 0; h < 12; h++) {
+        if (h === 3) continue;
+        var g = add(indices, "g", { transform: "rotate(" + h * 30 + " " + C + " " + C + ")" });
+        (h === 0 ? [-4.2, 4.2] : [0]).forEach(function (dx) {
+          var w = h % 3 === 0 ? 5.2 : 4.2, len = h % 3 === 0 ? 19 : 15;
+          add(g, "rect", { x: C + dx - w / 2, y: C - 97, width: w, height: len, rx: 0.8, fill: "url(#" + uid + "metal)" });
+          add(g, "rect", { x: C + dx, y: C - 97, width: w / 2, height: len, fill: v.facet, opacity: 0.35 });
+          add(g, "rect", { x: C + dx - w / 6, y: C - 95, width: w / 3, height: len - 5, rx: 0.4, fill: v.lume, opacity: 0.85 });
+        });
+      }
+      // Signature and weekday.
+      add(svg, "text", { x: C, y: 70, "text-anchor": "middle", fill: v.ink, "font-family": "serif", "font-size": 10, "letter-spacing": 3 }).textContent = "AURELVI";
+      add(svg, "text", { x: C, y: 79, "text-anchor": "middle", fill: v.ink, "font-family": "serif", "font-size": 4.6, "letter-spacing": 2.4, opacity: 0.8 }).textContent = "ATELIER";
+      add(svg, "text", { x: C, y: 168, "text-anchor": "middle", fill: v.ink, "font-family": "serif", "font-size": 6, "letter-spacing": 2, opacity: 0.85 }).textContent = now.toLocaleDateString(locale, { weekday: "long" }).toUpperCase();
+      // Date window with a polished frame.
+      add(svg, "rect", { x: 152, y: 111, width: 21, height: 18, rx: 1.6, fill: "url(#" + uid + "metal)" });
+      add(svg, "rect", { x: 154, y: 113, width: 17, height: 14, rx: 0.8, fill: "#f9f6ee" });
+      add(svg, "text", { x: 162.5, y: 123.6, "text-anchor": "middle", fill: "#1c1a16", "font-family": "serif", "font-size": 10.5, "font-weight": 600 }).textContent = String(now.getDate());
+      // Dauphine hands: two facets each, so light seems to fall from the upper left.
+      var hands = add(svg, "g", { filter: "url(#" + uid + "shadow)" });
+      function dauphine(deg, length, width, tail) {
+        var g = add(hands, "g", { transform: "rotate(" + deg + " " + C + " " + C + ")" });
+        add(g, "polygon", { points: [C, C - length, C - width, C - length * 0.22, C, C + tail].join(" "), fill: "url(#" + uid + "metal)" });
+        add(g, "polygon", { points: [C, C - length, C + width, C - length * 0.22, C, C + tail].join(" "), fill: v.facet });
+        add(g, "polygon", { points: [C, C - length + 7, C - width * 0.38, C - length * 0.42, C + width * 0.38, C - length * 0.42].join(" "), fill: v.lume, opacity: 0.9 });
+      }
+      var seconds = now.getSeconds(), minutes = now.getMinutes() + seconds / 60;
+      dauphine(((now.getHours() % 12) + minutes / 60) * 30, 58, 6.2, 11);
+      dauphine(minutes * 6, 90, 4.8, 13);
+      var sec = add(hands, "g", { transform: "rotate(" + seconds * 6 + " " + C + " " + C + ")" });
+      add(sec, "line", { x1: C, y1: C + 24, x2: C, y2: C - 99, stroke: v.second, "stroke-width": 1.1, "stroke-linecap": "round" });
+      add(sec, "circle", { cx: C, cy: C + 19, r: 3.2, fill: v.second });
+      add(svg, "circle", { cx: C, cy: C, r: 5.2, fill: "url(#" + uid + "metal)" });
+      add(svg, "circle", { cx: C, cy: C, r: 2, fill: v.second });
+      // Sapphire glass reflection.
+      var clip = add(defs, "clipPath", { id: uid + "clip" });
+      add(clip, "circle", { cx: C, cy: C, r: 108 });
+      add(svg, "ellipse", { cx: 96, cy: 64, rx: 96, ry: 50, transform: "rotate(-24 96 64)", fill: "url(#" + uid + "glass)", "clip-path": "url(#" + uid + "clip)", "pointer-events": "none" });
+      return svg;
+    }
     function renderClock(surface) {
       var d = ctx.device(),
         box = node("div", "clock-page"),
@@ -383,7 +472,11 @@
         box.dataset.clockTheme=clockTheme;
       if (d.clockAppearance === "dark") box.classList.add("clock-dark");
       box.style.setProperty("--clock-accent", color(d.clockAccent, "#318743"));
-      if (d.clockFace === "analog") {
+      var luxury = LUXURY_DIALS[d.clockFace];
+      if (luxury) {
+        box.classList.add("clock-luxury");
+        box.appendChild(luxuryClock(now, luxury, locale));
+      } else if (d.clockFace === "analog") {
         var svg = svgElement("svg", {
           viewBox: "0 0 240 240",
           class: "analog-clock",
@@ -455,7 +548,8 @@
             }),
           ),
         );
-      box.appendChild(
+      // The luxury dial carries its own weekday and date window.
+      if (!luxury) box.appendChild(
         node(
           "div",
           "clock-date",

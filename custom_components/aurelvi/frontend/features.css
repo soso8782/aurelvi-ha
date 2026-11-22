@@ -134,6 +134,15 @@
   max-height: 65%;
   filter: drop-shadow(3px 3px 5px var(--shadow));
 }
+.analog-clock.luxury-clock {
+  width: 330px;
+  height: 330px;
+  max-height: 82%;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+.clock-luxury .clock-alarm-button {
+  margin-top: 8px;
+}
 .clock-face {
   fill: var(--surface-hi);
   stroke: var(--surface-border);
