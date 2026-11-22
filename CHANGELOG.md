@@ -7,6 +7,13 @@
 
 # Changelog
 
+## 0.3.24
+
+- New entities per panel: screenshot camera, Awake sensor, IP address and Android version, siren (bundled panel sounds), alarm clock switch and alarm time, and event entities for the alarm clock, button presses and notification answers.
+- New services: `screenshot`, `set_alarm`, `play_media`, `stop_media`, `notify_clear`, `ping` (returns `rtt_ms`, fires `aurelvi_pong`), `refresh_info` and `discover` (returns every online panel, fires `aurelvi_discovery`).
+- `notify` accepts severity, icon, image, spoken text, up to three answer buttons (a plain list of words works), a reusable ID and `timeout`. The message is optional.
+- Fix: the "alarm fired" event was lost while a button page was on screen.
+
 ## 0.3.23
 
 - Send complete ADB packets over TCP even when the socket accepts only a partial write. This prevents APK transfers from waiting for acknowledgement of an incomplete packet.

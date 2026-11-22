@@ -16,6 +16,9 @@
   },
   "entity": {
     "binary_sensor": {
+      "awake": {
+        "name": "Prebudený"
+      },
       "motion": {
         "name": "Pohyb"
       },
@@ -37,6 +40,46 @@
         "name": "Prebudiť"
       }
     },
+    "camera": {
+      "screenshot": {
+        "name": "Snímka obrazovky"
+      }
+    },
+    "event": {
+      "alarm": {
+        "name": "Budík",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm_fired": "Zazvonil"
+            }
+          }
+        }
+      },
+      "button_press": {
+        "name": "Stlačenie tlačidla",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Stlačené"
+            }
+          }
+        }
+      },
+      "notification_answer": {
+        "name": "Odpoveď na oznámenie",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "action": "Tlačidlo",
+              "dismissed": "Zavreté",
+              "expired": "Vypršalo",
+              "shown": "Zobrazené"
+            }
+          }
+        }
+      }
+    },
     "media_player": {
       "speaker": {
         "name": "Reproduktor"
@@ -53,11 +96,17 @@
       }
     },
     "sensor": {
+      "android": {
+        "name": "Verzia Androidu"
+      },
       "freeMemMB": {
         "name": "Voľná pamäť"
       },
       "illuminance": {
         "name": "Osvetlenosť"
+      },
+      "ip": {
+        "name": "IP adresa"
       },
       "rssi": {
         "name": "Wi-Fi signál"
@@ -72,9 +121,22 @@
         "name": "Verzia"
       }
     },
+    "siren": {
+      "siren": {
+        "name": "Siréna"
+      }
+    },
     "switch": {
+      "alarm_enabled": {
+        "name": "Budík"
+      },
       "screen": {
         "name": "Obrazovka"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "Čas budíka"
       }
     },
     "update": {
@@ -103,8 +165,34 @@
       },
       "name": "Zrušiť časovač"
     },
+    "discover": {
+      "description": "Nájde všetky panely Aurelvi online na MQTT brokeri, spárované aj nespárované.",
+      "fields": {
+        "timeout": {
+          "name": "Čakať (sekundy)"
+        }
+      },
+      "name": "Vyhľadať panely"
+    },
     "notify": {
       "fields": {
+        "actions": {
+          "description": "Najviac tri tlačidlá, napr. [{\"id\": \"ano\", \"label\": \"Áno\", \"on_press\": {\"service\": \"light.turn_on\", \"target\": {\"entity_id\": \"light.chodba\"}}}] alebo jednoduchý zoznam slov.",
+          "name": "Tlačidlá odpovede"
+        },
+        "icon": {
+          "name": "Ikona"
+        },
+        "id": {
+          "description": "Rovnaké ID nahradí existujúce oznámenie; aurelvi.notify_clear ho vie zmazať.",
+          "name": "ID oznámenia"
+        },
+        "image": {
+          "name": "URL obrázka"
+        },
+        "level": {
+          "name": "Závažnosť"
+        },
         "message": {
           "name": "Text oznámenia"
         },
@@ -118,6 +206,10 @@
           "description": "ding, alarm_beep, alarm, alarmo, siren, alebo URL zvuku.",
           "name": "Zvuk alebo HTTPS/HTTP adresa"
         },
+        "speak": {
+          "description": "Panel ho prečíta nahlas.",
+          "name": "Hovorený text"
+        },
         "timeoutS": {
           "name": "Čas zobrazenia v sekundách (0 = bez limitu)"
         },
@@ -126,6 +218,18 @@
         }
       },
       "name": "Oznámenie na panel"
+    },
+    "notify_clear": {
+      "fields": {
+        "id": {
+          "description": "Prázdne zmaže všetky oznámenia.",
+          "name": "ID oznámenia"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Zmazať oznámenie"
     },
     "page": {
       "fields": {
@@ -138,6 +242,33 @@
       },
       "name": "Zobraziť stránku"
     },
+    "ping": {
+      "description": "Zmeria odozvu cez MQTT; vráti rtt_ms a vyvolá udalosť aurelvi_pong.",
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Ping panela"
+    },
+    "play_media": {
+      "description": "Prehrá vstavaný zvuk (ding, alarm_beep, alarm, alarmo, siren) alebo HTTP(S) adresu.",
+      "fields": {
+        "asset": {
+          "name": "Vstavaný zvuk"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        },
+        "url": {
+          "name": "URL"
+        },
+        "volume": {
+          "name": "Hlasitosť"
+        }
+      },
+      "name": "Prehrať zvuk"
+    },
     "push_config": {
       "description": "Znovu odošle uložené stránky a stavy na panel.",
       "fields": {
@@ -146,6 +277,15 @@
         }
       },
       "name": "Odoslať konfiguráciu"
+    },
+    "refresh_info": {
+      "description": "Panel hneď pošle verziu, IP, Wi-Fi signál, pamäť a čas od štartu.",
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Obnoviť informácie"
     },
     "screen": {
       "fields": {
@@ -161,6 +301,32 @@
       },
       "name": "Nastaviť displej"
     },
+    "screenshot": {
+      "description": "Kamera so snímkou obrazovky sa aktualizuje, keď obrázok príde.",
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Urobiť snímku obrazovky"
+    },
+    "set_alarm": {
+      "fields": {
+        "enabled": {
+          "name": "Zapnutý"
+        },
+        "hour": {
+          "name": "Hodina"
+        },
+        "minute": {
+          "name": "Minúta"
+        },
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Nastaviť budík"
+    },
     "start_timer": {
       "description": "Časovač sa ukladá v HA a obnoví sa po jeho reštarte.",
       "fields": {
@@ -175,6 +341,15 @@
         }
       },
       "name": "Spustiť časovač vypnutia"
+    },
+    "stop_media": {
+      "description": "Zastaví prehrávanie vrátane sirény.",
+      "fields": {
+        "panel_id": {
+          "name": "ID panela"
+        }
+      },
+      "name": "Zastaviť zvuk"
     },
     "wake": {
       "fields": {

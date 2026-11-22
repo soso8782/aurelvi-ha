@@ -100,7 +100,6 @@ notify:
         text: {}
     message:
       name: Notification message
-      required: true
       selector:
         text:
           multiline: true
@@ -121,6 +120,35 @@ notify:
     sound:
       name: Sound or HTTPS/HTTP URL
       description: ding, alarm_beep, alarm, alarmo, siren, or a sound URL.
+      selector:
+        text: {}
+    level:
+      name: Severity
+      selector:
+        select:
+          options: [info, success, warning, error]
+    icon:
+      name: Icon
+      selector:
+        text: {}
+    image:
+      name: Image URL
+      selector:
+        text: {}
+    speak:
+      name: Spoken text
+      description: Read aloud by the panel's speech engine.
+      selector:
+        text:
+          multiline: true
+    actions:
+      name: Answer buttons
+      description: 'Up to three buttons, e.g. [{"id": "yes", "label": "Yes", "on_press": {"service": "light.turn_on", "target": {"entity_id": "light.hall"}}}] or a plain list of words.'
+      selector:
+        object: {}
+    id:
+      name: Notification ID
+      description: Reusing an ID replaces that notification; aurelvi.notify_clear can remove it.
       selector:
         text: {}
 adb_command:
@@ -151,3 +179,106 @@ adb_command:
           min: 1
           max: 65535
           mode: box
+screenshot:
+  name: Take screenshot
+  description: The panel's screenshot camera updates when the image arrives.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+set_alarm:
+  name: Set alarm clock
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean: {}
+    hour:
+      name: Hour
+      required: true
+      selector:
+        number: {min: 0, max: 23, mode: box}
+    minute:
+      name: Minute
+      required: true
+      selector:
+        number: {min: 0, max: 59, mode: box}
+play_media:
+  name: Play sound
+  description: Play a bundled sound (ding, alarm_beep, alarm, alarmo, siren) or an HTTP(S) URL.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    url:
+      name: URL
+      selector:
+        text: {}
+    asset:
+      name: Bundled sound
+      selector:
+        select:
+          options: [ding, alarm_beep, alarm, alarmo, siren]
+    volume:
+      name: Volume
+      selector:
+        number: {min: 0, max: 1, step: 0.05}
+stop_media:
+  name: Stop sound
+  description: Stops playback, including a ringing siren.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+notify_clear:
+  name: Clear notification
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+    id:
+      name: Notification ID
+      description: Leave empty to clear every notification.
+      selector:
+        text: {}
+ping:
+  name: Ping panel
+  description: Measures the MQTT round trip; returns rtt_ms and fires aurelvi_pong.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+refresh_info:
+  name: Refresh information
+  description: Ask the panel to publish its version, IP, Wi-Fi signal, memory and uptime now.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector:
+        text: {}
+discover:
+  name: Discover panels
+  description: Find every Aurelvi panel online on the MQTT broker, paired or not.
+  fields:
+    timeout:
+      name: Wait (seconds)
+      default: 2
+      selector:
+        number: {min: 1, max: 10, step: 0.5}

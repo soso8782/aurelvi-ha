@@ -10,7 +10,9 @@ bridge=importlib.import_module('integration.test') if False else None
 spec=importlib.util.spec_from_file_location('aurelvi_test_adapters',Path(__file__).with_name('integration.test.py'));ad=importlib.util.module_from_spec(spec);spec.loader.exec_module(ad)
 def module(name):return ad.module(name)
 frontend=module('homeassistant.components.frontend');panel=module('homeassistant.components.panel_custom');websocket=module('homeassistant.components.websocket_api');http=module('homeassistant.components.http');const=module('homeassistant.const');ce=module('homeassistant.config_entries')
-const.Platform=Enum('Platform',{name.upper():name for name in ['sensor','binary_sensor','button','number','switch','media_player','update','notify']})
+const.Platform=Enum('Platform',{name.upper():name for name in ['sensor','binary_sensor','button','number','switch','media_player','update','notify','camera','event','siren','time']})
+ad.core=sys.modules['homeassistant.core'];ad.core.SupportsResponse=types.SimpleNamespace(NONE='none',OPTIONAL='optional',ONLY='only')
+module('homeassistant.helpers.config_validation').boolean=bool
 http.StaticPathConfig=lambda *args:args
 exceptions=module('homeassistant.exceptions')
 class HomeAssistantError(Exception):

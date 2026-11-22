@@ -20,7 +20,7 @@ from homeassistant.helpers.network import get_url
 from homeassistant.helpers.storage import Store
 from .panel_settings import public_settings, public_device, normalize_panel_config
 from .i18n import msg as tr, plain, language as plain_language
-from .const import DOMAIN, PREFIX, SIGNAL, VERSION
+from .const import DOMAIN, PREFIX, SIGNAL, SIGNAL_EVENT, VERSION
 from .models import actions, attribute_key, PROJECTED_ATTRIBUTES, finite_attribute, default_config, entities, entity_id, entity_key, mirror, number, panel_id, validate_config, validate_device
 
 _LOGGER=logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class Hub:
         self.hass=hass;self.entry=entry;self.store=Store(hass,1,DOMAIN+'.studio')
         self.panels={};self.status={};self.timers={};self.settings={};self.latest={};self.logs=[]
         self.templates = {}
-        self.unsubs=[];self.timer_jobs={};self.event_ids={};self.lock=asyncio.Lock();self.closed=False;self.notify_bindings={};self.weather_at={};self.panel_entities={};self.warned={}
+        self.unsubs=[];self.timer_jobs={};self.event_ids={};self.lock=asyncio.Lock();self.closed=False;self.notify_bindings={};self.weather_at={};self.panel_entities={};self.warned={};self.probes={}
     def refresh_entities(self,pid=None):
         """Rebuild the cached set of entities referenced by panel configs."""
         for key in [pid] if pid is not None else list(self.panels):
@@ -89,6 +89,8 @@ class Hub:
     async def receive(self,msg):
         try:
             parts=msg.topic.split('/');pid=panel_id(parts[2]);suffix='/'.join(parts[3:])
+            if suffix in {'sys/discovery','sys/pong'} and not msg.retain:
+                self.probe_reply(pid,suffix[4:],msg.payload);return
             if pid not in self.panels:
                 if suffix not in {'sys/info','avail'}:return
                 async with self.lock:
@@ -121,7 +123,9 @@ class Hub:
             elif suffix.startswith('sys/'):
                 name=suffix[4:]
                 if name=='notification' and not msg.retain and self.panels[pid].get('paired') and data.get('status') in {'shown','dismissed','expired','action'}:
-                    self.hass.bus.async_fire('aurelvi_notification',{'panel_id':pid,'id':str(data.get('id',''))[:128],'status':data['status'],'action_id':str(data.get('actionId',''))[:128]})
+                    answer={'panel_id':pid,'id':str(data.get('id',''))[:128],'status':data['status'],'action_id':str(data.get('actionId',''))[:128]}
+                    self.hass.bus.async_fire('aurelvi_notification',answer)
+                    async_dispatcher_send(self.hass,SIGNAL_EVENT,pid,'notification',answer)
 
                 if name=='screenshot':
                     try:
@@ -357,6 +361,13 @@ class Hub:
         eid=event.get('eventId');button=event.get('button');page=next((p for p in self.panels[pid]['config']['pages'] if p['id']==event.get('page')),None)
         try:
             if not mqtt.is_connected(self.hass) or not self.status.get(pid,{}).get('online'):raise ValueError(tr('backend.hub.panel_disconnected'))
+            # The alarm clock reports with whatever page is on screen, so it must not reach the page handlers.
+            if button=='alarm' and event.get('action')=='alarm_fired':
+                self.hass.bus.async_fire('aurelvi_alarm_fired',{'panel_id':pid})
+                async_dispatcher_send(self.hass,SIGNAL_EVENT,pid,'alarm',{})
+                if eid:await self.publish(pid,'sys/ack',{'eventId':eid,'button':button,'ok':True},False)
+                return
+            async_dispatcher_send(self.hass,SIGNAL_EVENT,pid,'press',{'button':str(button or '')[:128],'page':str(event.get('page') or '')[:64],'action':str(event.get('action') or '')[:32]})
             if not page:raise ValueError(tr('backend.hub.unknown_page'))
             if page['type']=='fan':await self.fan_event(pid,page,event)
             elif page['type']=='grid' and page.get('thermostat'):await self.thermostat_event(page,event)
@@ -367,7 +378,6 @@ class Hub:
                     for direction,binding in camera.get('ptz',{}).items():
                         if button==page['id']+'.ptz.'+entity_key(camera['entity'])+'.'+direction:await self.execute(binding);matched=True
                 if not matched:raise ValueError(tr('backend.hub.unknown_camera_command'))
-            elif button=='alarm' and event.get('action')=='alarm_fired':self.hass.bus.async_fire('aurelvi_alarm_fired',{'panel_id':pid})
             else:raise ValueError(tr('backend.hub.unknown_action'))
             if eid:await self.publish(pid,'sys/ack',{'eventId':eid,'button':button,'ok':True},False)
         except Exception as e:
@@ -523,11 +533,54 @@ class Hub:
         await self.publish(pid,'state/weather',data,True)
     async def notify(self,pid,data):
         data=copy.deepcopy(data);data.setdefault('id',secrets.token_hex(8));bindings={}
+        if 'timeout' in data:data.setdefault('timeoutS',data.pop('timeout'))
+        # A plain list of words is accepted as buttons whose id is the word itself.
+        data['actions']=[{'id':str(a)[:64],'label':str(a)[:40]} if isinstance(a,(str,int,float)) else a for a in (data.get('actions') or [])][:3]
+        if any(not isinstance(a,dict) or not a.get('id') for a in data['actions']):raise ValueError(tr('backend.hub.invalid_notification_actions'))
+        if not data['actions']:data.pop('actions')
         for a in data.get('actions',[])[:3]:
             if a.get('on_press'):bindings[a['id']]=actions(a.pop('on_press'))
         self.notify_bindings[(pid,data['id'])]=bindings
         if len(self.notify_bindings)>100:self.notify_bindings.pop(next(iter(self.notify_bindings)))
         await self.command(pid,'notify',data)
+    @callback
+    def probe_reply(self,pid,kind,payload):
+        """Route a ping or discovery reply to the request that is waiting for it."""
+        try:data=json.loads(payload)
+        except (TypeError,ValueError):return
+        if not isinstance(data,dict):return
+        waiting=self.probes.get(str(data.get('id','')))
+        if not waiting or waiting['kind']!=kind:return
+        if kind=='pong':
+            if waiting['panel']!=pid or waiting['future'].done():return
+            waiting['future'].set_result(round((time.monotonic()-waiting['sent'])*1000))
+        elif len(waiting['found'])<50:
+            info={k:data[k] for k in ['model','version','ip','android','package'] if k in data and isinstance(data[k],(str,int,float))}
+            waiting['found'][pid]=dict(info,panel_id=pid,paired=bool(self.panels.get(pid,{}).get('paired')))
+    async def ping(self,pid,timeout=5):
+        probe=secrets.token_hex(8);future=asyncio.get_running_loop().create_future()
+        self.probes[probe]={'kind':'pong','panel':pid,'sent':time.monotonic(),'future':future}
+        try:
+            await self.command(pid,'ping',{'id':probe})
+            try:rtt=await asyncio.wait_for(future,timeout)
+            except asyncio.TimeoutError:raise ValueError(tr('backend.hub.ping_timeout')) from None
+        finally:self.probes.pop(probe,None)
+        self.hass.bus.async_fire('aurelvi_pong',{'panel_id':pid,'rtt_ms':rtt})
+        return {'panel_id':pid,'rtt_ms':rtt}
+    async def discover(self,timeout=2):
+        if not mqtt.is_connected(self.hass):raise ValueError(tr('backend.hub.panel_disconnected'))
+        probe=secrets.token_hex(8);found={}
+        self.probes[probe]={'kind':'discovery','found':found}
+        try:
+            await mqtt.async_publish(self.hass,PREFIX+'/discover',json.dumps({'id':probe}),qos=0,retain=False)
+            await asyncio.sleep(timeout)
+        finally:self.probes.pop(probe,None)
+        panels=sorted(found.values(),key=lambda p:p['panel_id'])
+        for panel in panels:self.hass.bus.async_fire('aurelvi_discovery',panel)
+        return {'panels':panels}
+    async def set_alarm(self,pid,enabled,hour,minute):
+        if type(hour) is not int or type(minute) is not int or not 0<=hour<=23 or not 0<=minute<=59:raise ValueError(tr('backend.hub.invalid_alarm_time'))
+        await self.command(pid,'set_alarm',{'enabled':bool(enabled),'hour':hour,'minute':minute})
     async def check_releases(self,_=None):
         repo=self.settings.get('githubRepo','')
         if not repo:self.latest={};self.changed();return

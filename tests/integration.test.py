@@ -73,6 +73,42 @@ class Integration(unittest.IsolatedAsyncioTestCase):
  async def event(self,button,value=None,event_id='e1',retain=False):
   await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/test/event',payload=json.dumps({'page':'fan','button':button,'action':'press','value':value,'eventId':event_id}),retain=retain))
  def call_data(self):return self.hass.calls[-1][:3]
+ async def test_alarm_fired_is_reported_whatever_page_is_shown(self):
+  fired=[];sent=[];self.hass.bus.async_fire=lambda *a:fired.append(a)
+  sys.modules['aurelvi_test.hub'].async_dispatcher_send=lambda *a:sent.append(a[1:])
+  await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/test/event',payload=json.dumps({'page':'fan','button':'alarm','action':'alarm_fired','eventId':'a1'}),retain=False))
+  self.assertEqual(fired,[('aurelvi_alarm_fired',{'panel_id':'test'})]);self.assertIn(('aurelvi_event','test','alarm',{}),sent)
+  self.assertEqual(self.hass.mqtt[-1][1],{'eventId':'a1','button':'alarm','ok':True});self.assertEqual(self.hass.calls,[])
+ async def test_button_press_is_forwarded_to_event_entities(self):
+  sent=[];sys.modules['aurelvi_test.hub'].async_dispatcher_send=lambda *a:sent.append(a[1:])
+  await self.event('fan.off')
+  self.assertIn(('aurelvi_event','test','press',{'button':'fan.off','page':'fan','action':'press'}),sent);self.assertEqual(self.call_data()[:2],('fan','turn_off'))
+ async def test_ping_measures_round_trip(self):
+  task=asyncio.create_task(self.hub.ping('test',timeout=2));await asyncio.sleep(0)
+  topic,doc,_=self.hass.mqtt[-1];self.assertEqual(topic,'aurelvi/panel/test/cmd/ping')
+  await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/other/sys/pong',payload=json.dumps({'id':doc['id']}),retain=False))
+  self.assertFalse(task.done())
+  await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/test/sys/pong',payload=json.dumps({'id':doc['id'],'ts':1}),retain=False))
+  result=await task;self.assertEqual(result['panel_id'],'test');self.assertGreaterEqual(result['rtt_ms'],0);self.assertEqual(self.hub.probes,{})
+ async def test_ping_times_out(self):
+  with self.assertRaises(ValueError):await self.hub.ping('test',timeout=0.01)
+  self.assertEqual(self.hub.probes,{})
+ async def test_discovery_collects_paired_and_unknown_panels(self):
+  task=asyncio.create_task(self.hub.discover(timeout=0.05));await asyncio.sleep(0)
+  topic,doc,_=self.hass.mqtt[-1];self.assertEqual(topic,'aurelvi/panel/discover')
+  for pid in ['test','newpanel']:
+   await self.hub.receive(types.SimpleNamespace(topic='aurelvi/panel/'+pid+'/sys/discovery',payload=json.dumps({'id':doc['id'],'version':'0.3.17','ip':'10.0.0.2','secret':{'x':1}}),retain=False))
+  result=await task
+  self.assertEqual([(p['panel_id'],p['paired']) for p in result['panels']],[('newpanel',False),('test',True)])
+  self.assertNotIn('secret',result['panels'][0]);self.assertNotIn('newpanel',self.hub.panels)
+ async def test_notification_words_and_timeout_alias(self):
+  await self.hub.notify('test',{'message':'Gate?','actions':['Yes','No'],'timeout':0})
+  doc=self.hass.mqtt[-1][1];self.assertEqual(doc['actions'],[{'id':'Yes','label':'Yes'},{'id':'No','label':'No'}]);self.assertEqual(doc['timeoutS'],0);self.assertNotIn('timeout',doc)
+  with self.assertRaises(ValueError):await self.hub.notify('test',{'message':'x','actions':[{'label':'no id'}]})
+ async def test_set_alarm_validates_time(self):
+  await self.hub.set_alarm('test',True,6,30);self.assertEqual(self.hass.mqtt[-1][:2],('aurelvi/panel/test/cmd/set_alarm',{'enabled':True,'hour':6,'minute':30}))
+  for hour,minute in [(24,0),(6,60),('6',0)]:
+   with self.assertRaises(ValueError):await self.hub.set_alarm('test',True,hour,minute)
  async def test_unrelated_state_change_is_ignored_without_walking_config(self):
   from unittest.mock import patch
   self.hub.refresh_entities();created=[]
