@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.25
+
+- Three luxury watch dials for the clock page and screensaver (Studio → Clock): midnight blue and gold, graphite and steel, ivory and gold. Sunburst dial, applied batons with lume, faceted dauphine hands, railway minute track, weekday and date window.
+
 ## 0.3.24
 
 - New entities per panel: screenshot camera, Awake sensor, IP address and Android version, siren (bundled panel sounds), alarm clock switch and alarm time, and event entities for the alarm clock, button presses and notification answers.
