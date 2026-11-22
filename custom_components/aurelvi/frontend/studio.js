@@ -670,7 +670,7 @@ if(root.document&&DATA.mount!==false){if(root.document.readyState==='loading')ro
         iframe = make("iframe");
       iframe.id = "preview";
       iframe.title = tr("studio.pages.aurelvi_preview");
-      iframe.src = "/aurelvi-static/preview.html?studio=1";
+      iframe.src = "/aurelvi-static/preview.html?studio=1&v=" + encodeURIComponent(this.data?.version || "");
       iframe.onload = () => {
         this.lastPreview = null;
         this.preview();

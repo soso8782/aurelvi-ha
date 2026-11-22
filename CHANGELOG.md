@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.26
+
+- Studio preview loads the panel scripts with the integration version, so after an update it never shows an old cached clock or page renderer.
+
 ## 0.3.25
 
 - Three luxury watch dials for the clock page and screensaver (Studio → Clock): midnight blue and gold, graphite and steel, ivory and gold. Sunburst dial, applied batons with lume, faceted dauphine hands, railway minute track, weekday and date window.
