@@ -14,10 +14,62 @@ from unittest.mock import patch
 from adb_shell.auth.keygen import keygen
 from adb_shell.auth.sign_pythonrsa import PythonRSASigner
 from adb_shell.exceptions import TcpTimeoutException
+from adb_shell.transport.tcp_transport import TcpTransport
 
 _pkg=types.ModuleType('aurelvi_pkg');_pkg.__path__=[str(Path(__file__).resolve().parents[1]/'custom_components/aurelvi')];sys.modules['aurelvi_pkg']=_pkg
 spec=importlib.util.spec_from_file_location('aurelvi_pkg.adb',Path(__file__).resolve().parents[1]/'custom_components/aurelvi/adb.py')
 adb=importlib.util.module_from_spec(spec);sys.modules['aurelvi_pkg.adb']=adb;spec.loader.exec_module(adb)
+from aurelvi_pkg.adb_transport import CompleteTcpTransport
+
+
+class TransportTests(unittest.TestCase):
+    def test_complete_write_when_socket_accepts_only_part_of_a_packet(self):
+        class PartialSocket:
+            timeout = 0
+            received = bytearray()
+
+            def gettimeout(self):
+                return self.timeout
+
+            def settimeout(self, timeout):
+                self.timeout = timeout
+
+            def send(self, data):
+                piece = data[:32 * 1024]
+                self.received.extend(piece)
+                return len(piece)
+
+            def sendall(self, data):
+                while data:
+                    data = data[self.send(data):]
+
+        packet = bytes(range(256)) * 768
+        connection = PartialSocket()
+        original = TcpTransport('127.0.0.1')
+        original._connection = connection
+        with patch('adb_shell.transport.tcp_transport.select.select', return_value=([], [connection], [])):
+            self.assertLess(original.bulk_write(packet, 15), len(packet))
+        self.assertNotEqual(connection.received, packet)
+
+        fixed = CompleteTcpTransport('127.0.0.1')
+        fixed._connection = connection
+        connection.received.clear()
+        self.assertEqual(fixed.bulk_write(packet, 15), len(packet))
+        self.assertEqual(connection.received, packet)
+        self.assertEqual(connection.timeout, 0)
+
+    def test_timeout_is_reported_and_previous_socket_timeout_is_restored(self):
+        connection = types.SimpleNamespace(gettimeout=lambda: 0, settimeout=lambda _: None)
+        def timeout(_data):
+            raise TimeoutError('TCP timed out')
+        connection.sendall = timeout
+        transport = CompleteTcpTransport('127.0.0.1')
+        transport._connection = connection
+        timeouts = []
+        connection.settimeout = timeouts.append
+        with self.assertRaises(TcpTimeoutException):
+            transport.bulk_write(b'packet', 120)
+        self.assertEqual(timeouts, [120, 0])
 
 class Device:
     instances=[]
@@ -37,7 +89,7 @@ class Tests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.key=str(Path(self.tmp.name)/'adbkey')
-        self.p=patch.dict(sys.modules,{'adb_shell.adb_device':types.SimpleNamespace(AdbDeviceTcp=Device)})
+        self.p=patch.dict(sys.modules,{'adb_shell.adb_device':types.SimpleNamespace(AdbDevice=Device)})
         self.p.start();self.addCleanup(self.p.stop)
     def execute(self,op,data=None):return adb.execute(self.key,'192.168.1.231',5555,op,data or {})
     def test_local_endpoint(self):self.assertEqual(adb.endpoint({'host':'192.168.1.231','port':5555}),('192.168.1.231',5555))

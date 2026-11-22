@@ -7,6 +7,10 @@
 
 # Changelog
 
+## 0.3.23
+
+- Send complete ADB packets over TCP even when the socket accepts only a partial write. This prevents APK transfers from waiting for acknowledgement of an incomplete packet.
+
 ## 0.3.22
 
 - Show live ADB installation stages in both Studio install controls, with measured download and transfer percentages. Android installation and launch report their current stage.

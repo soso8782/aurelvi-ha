@@ -159,10 +159,11 @@ def download_apk(path, progress=None):
 
 
 def execute(key_path, host, port, operation, data, progress=None):
-    from adb_shell.adb_device import AdbDeviceTcp
+    from adb_shell.adb_device import AdbDevice
     from adb_shell.auth.keygen import keygen
     from adb_shell.auth.sign_pythonrsa import PythonRSASigner
     from adb_shell.exceptions import AdbTimeoutError, TcpTimeoutException
+    from .adb_transport import CompleteTcpTransport
 
     key = Path(key_path)
     key.parent.mkdir(parents=True, exist_ok=True)
@@ -175,7 +176,7 @@ def execute(key_path, host, port, operation, data, progress=None):
             os.replace(temporary, key)
     os.chmod(key, 0o600)
     signer = PythonRSASigner.FromRSAKeyPath(str(key))
-    device = AdbDeviceTcp(host, port, default_transport_timeout_s=15)
+    device = AdbDevice(CompleteTcpTransport(host, port), default_transport_timeout_s=15)
     awaiting_authorization = False
     timeout_errors = (AdbTimeoutError, TcpTimeoutException, TimeoutError)
 
