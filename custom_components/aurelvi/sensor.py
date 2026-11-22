@@ -4,6 +4,9 @@ from .entity import AurelviEntity,add_dynamic
 class PanelSensor(AurelviEntity,SensorEntity):
     def __init__(self,hub,pid,key,name,unit=None):
         super().__init__(hub,pid,key,name);self.key=key;self._attr_native_unit_of_measurement=unit
+        if key in {'ip','android'}:
+            from homeassistant.const import EntityCategory
+            self._attr_entity_category=EntityCategory.DIAGNOSTIC
     @property
     def native_value(self):
         if self.key=='timer':
@@ -17,7 +20,7 @@ class PanelSensor(AurelviEntity,SensorEntity):
         return None
 
 async def async_setup_entry(hass,entry,async_add_entities):
-    await add_dynamic(hass,entry,async_add_entities,lambda h,p:[PanelSensor(h,p,'version','Verzia'),PanelSensor(h,p,'rssi','Wi-Fi signál','dBm'),PanelSensor(h,p,'freeMemMB','Voľná pamäť','MB'),PanelSensor(h,p,'uptimeS','Čas od štartu','s'),PanelSensor(h,p,'timer','Časovač','s'),PanelIlluminance(h,p)])
+    await add_dynamic(hass,entry,async_add_entities,lambda h,p:[PanelSensor(h,p,'version','Verzia'),PanelSensor(h,p,'rssi','Wi-Fi signál','dBm'),PanelSensor(h,p,'freeMemMB','Voľná pamäť','MB'),PanelSensor(h,p,'uptimeS','Čas od štartu','s'),PanelSensor(h,p,'timer','Časovač','s'),PanelSensor(h,p,'ip','IP'),PanelSensor(h,p,'android','Android'),PanelIlluminance(h,p)])
 
 class PanelIlluminance(AurelviEntity,SensorEntity):
     _attr_device_class='illuminance'

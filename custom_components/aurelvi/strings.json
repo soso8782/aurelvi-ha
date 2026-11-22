@@ -16,6 +16,9 @@
   },
   "entity": {
     "binary_sensor": {
+      "awake": {
+        "name": "Awake"
+      },
       "motion": {
         "name": "Motion"
       },
@@ -37,6 +40,46 @@
         "name": "Wake"
       }
     },
+    "camera": {
+      "screenshot": {
+        "name": "Screenshot"
+      }
+    },
+    "event": {
+      "alarm": {
+        "name": "Alarm clock",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm_fired": "Fired"
+            }
+          }
+        }
+      },
+      "button_press": {
+        "name": "Button press",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "press": "Pressed"
+            }
+          }
+        }
+      },
+      "notification_answer": {
+        "name": "Notification answer",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "action": "Button",
+              "dismissed": "Dismissed",
+              "expired": "Expired",
+              "shown": "Shown"
+            }
+          }
+        }
+      }
+    },
     "media_player": {
       "speaker": {
         "name": "Speaker"
@@ -53,11 +96,17 @@
       }
     },
     "sensor": {
+      "android": {
+        "name": "Android version"
+      },
       "freeMemMB": {
         "name": "Free memory"
       },
       "illuminance": {
         "name": "Illuminance"
+      },
+      "ip": {
+        "name": "IP address"
       },
       "rssi": {
         "name": "Wi-Fi signal"
@@ -72,9 +121,22 @@
         "name": "Version"
       }
     },
+    "siren": {
+      "siren": {
+        "name": "Siren"
+      }
+    },
     "switch": {
+      "alarm_enabled": {
+        "name": "Alarm clock"
+      },
       "screen": {
         "name": "Screen"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "Alarm time"
       }
     },
     "update": {
@@ -103,8 +165,34 @@
       },
       "name": "Cancel timer"
     },
+    "discover": {
+      "description": "Find every Aurelvi panel online on the MQTT broker, paired or not.",
+      "fields": {
+        "timeout": {
+          "name": "Wait (seconds)"
+        }
+      },
+      "name": "Discover panels"
+    },
     "notify": {
       "fields": {
+        "actions": {
+          "description": "Up to three buttons, e.g. [{\"id\": \"yes\", \"label\": \"Yes\", \"on_press\": {\"service\": \"light.turn_on\", \"target\": {\"entity_id\": \"light.hall\"}}}] or a plain list of words.",
+          "name": "Answer buttons"
+        },
+        "icon": {
+          "name": "Icon"
+        },
+        "id": {
+          "description": "Reusing an ID replaces that notification; aurelvi.notify_clear can remove it.",
+          "name": "Notification ID"
+        },
+        "image": {
+          "name": "Image URL"
+        },
+        "level": {
+          "name": "Severity"
+        },
         "message": {
           "name": "Notification message"
         },
@@ -118,6 +206,10 @@
           "description": "ding, alarm_beep, alarm, alarmo, siren, or a sound URL.",
           "name": "Sound or HTTPS/HTTP URL"
         },
+        "speak": {
+          "description": "Read aloud by the panel's speech engine.",
+          "name": "Spoken text"
+        },
         "timeoutS": {
           "name": "Display duration in seconds (0 = unlimited)"
         },
@@ -126,6 +218,18 @@
         }
       },
       "name": "Panel notification"
+    },
+    "notify_clear": {
+      "fields": {
+        "id": {
+          "description": "Leave empty to clear every notification.",
+          "name": "Notification ID"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Clear notification"
     },
     "page": {
       "fields": {
@@ -138,6 +242,33 @@
       },
       "name": "Show page"
     },
+    "ping": {
+      "description": "Measures the MQTT round trip; returns rtt_ms and fires aurelvi_pong.",
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Ping panel"
+    },
+    "play_media": {
+      "description": "Play a bundled sound (ding, alarm_beep, alarm, alarmo, siren) or an HTTP(S) URL.",
+      "fields": {
+        "asset": {
+          "name": "Bundled sound"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        },
+        "url": {
+          "name": "URL"
+        },
+        "volume": {
+          "name": "Volume"
+        }
+      },
+      "name": "Play sound"
+    },
     "push_config": {
       "description": "Resend saved pages and states to the panel.",
       "fields": {
@@ -146,6 +277,15 @@
         }
       },
       "name": "Push configuration"
+    },
+    "refresh_info": {
+      "description": "Ask the panel to publish its version, IP, Wi-Fi signal, memory and uptime now.",
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Refresh information"
     },
     "screen": {
       "fields": {
@@ -161,6 +301,32 @@
       },
       "name": "Set screen"
     },
+    "screenshot": {
+      "description": "The panel's screenshot camera updates when the image arrives.",
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Take screenshot"
+    },
+    "set_alarm": {
+      "fields": {
+        "enabled": {
+          "name": "Enabled"
+        },
+        "hour": {
+          "name": "Hour"
+        },
+        "minute": {
+          "name": "Minute"
+        },
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Set alarm clock"
+    },
     "start_timer": {
       "description": "The timer is stored in Home Assistant and restored after a restart.",
       "fields": {
@@ -175,6 +341,15 @@
         }
       },
       "name": "Start shutdown timer"
+    },
+    "stop_media": {
+      "description": "Stops playback, including a ringing siren.",
+      "fields": {
+        "panel_id": {
+          "name": "Panel ID"
+        }
+      },
+      "name": "Stop sound"
     },
     "wake": {
       "fields": {

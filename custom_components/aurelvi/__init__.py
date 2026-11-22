@@ -6,7 +6,9 @@ import voluptuous as vol
 from homeassistant.components import frontend, panel_custom, websocket_api, mqtt
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import Platform
-from homeassistant.core import callback
+from homeassistant.core import callback, SupportsResponse
+from homeassistant.helpers import config_validation as cv
+import secrets
 from homeassistant.exceptions import HomeAssistantError
 from .const import DOMAIN, PLATFORMS, VERSION
 from .hub import Hub
@@ -45,7 +47,7 @@ async def async_unload_entry(hass,entry):
     if not await hass.config_entries.async_unload_platforms(entry,[Platform(x) for x in PLATFORMS]):return False
     await entry.runtime_data.close();hass.data[DOMAIN].pop('hub',None)
     frontend.async_remove_panel(hass,'aurelvi')
-    for name in ['push_config','wake','page','notify','screen','start_timer','cancel_timer','adb_command']:hass.services.async_remove(DOMAIN,name)
+    for name in SERVICES+['adb_command','discover']:hass.services.async_remove(DOMAIN,name)
     return True
 
 @websocket_api.websocket_command({vol.Required('type'):'aurelvi/command',vol.Required('action'):str,vol.Optional('panel_id'):str,vol.Optional('data',default={}):dict})
@@ -123,18 +125,53 @@ async def ws_command(hass,connection,msg):
         _LOGGER.exception('Aurelvi Studio operation failed: %s',action)
         connection.send_error(msg['id'],'failed',tr('backend.ws.failed'))
 
+SERVICES=['push_config','wake','page','notify','screen','start_timer','cancel_timer','screenshot','set_alarm','play_media','stop_media','notify_clear','ping','refresh_info']
+
+def _media(data):
+    """Bundled sound name or HTTP(S) URL; the panel needs one of them."""
+    doc={'action':'play'}
+    for key in ['url','asset']:
+        if data.get(key):doc[key]=str(data[key])[:2000]
+    if not doc.get('url') and not doc.get('asset'):raise ValueError(tr('backend.hub.media_required'))
+    if data.get('volume') is not None:doc['volume']=data['volume']
+    return doc
+
 def register_services(hass):
     async def handle(call):
-        hub=hass.data[DOMAIN]['hub'];data=dict(call.data);pid=data.pop('panel_id')
+        hub=hass.data[DOMAIN]['hub'];data=dict(call.data);pid=data.pop('panel_id');result=None
         try:
             if call.service=='push_config':await hub.push(pid)
             elif call.service=='start_timer':await hub.set_timer(pid,data['entity_id'],data['seconds'])
             elif call.service=='cancel_timer':await hub.cancel_timer(pid)
             elif call.service=='notify':await hub.notify(pid,data)
+            elif call.service=='set_alarm':await hub.set_alarm(pid,data['enabled'],data['hour'],data['minute'])
+            elif call.service=='play_media':await hub.command(pid,'media',_media(data))
+            elif call.service=='stop_media':await hub.command(pid,'media',{'action':'stop'})
+            elif call.service=='notify_clear':await hub.command(pid,'notify_clear',{'id':data['id']} if data.get('id') else {})
+            elif call.service=='refresh_info':await hub.command(pid,'info')
+            elif call.service=='screenshot':await hub.command(pid,'screenshot',{'id':secrets.token_hex(4)})
+            elif call.service=='ping':result=await hub.ping(pid)
             else:await hub.command(pid,call.service,data)
         except ValueError as err:raise HomeAssistantError(translation_domain=DOMAIN,translation_key='panel_command_failed',translation_placeholders={'error':plain(err)}) from err
-    for name in ['push_config','wake','page','notify','screen','start_timer','cancel_timer']:
-        hass.services.async_register(DOMAIN,name,handle,schema=vol.Schema({vol.Required('panel_id'):str},extra=vol.ALLOW_EXTRA))
+        return result if call.return_response else None
+    pid_schema={vol.Required('panel_id'):str}
+    schemas={
+        'set_alarm':vol.Schema({**pid_schema,vol.Required('enabled'):cv.boolean,vol.Required('hour'):vol.All(vol.Coerce(int),vol.Range(min=0,max=23)),vol.Required('minute'):vol.All(vol.Coerce(int),vol.Range(min=0,max=59))}),
+        'play_media':vol.Schema({**pid_schema,vol.Optional('url'):str,vol.Optional('asset'):str,vol.Optional('volume'):vol.All(vol.Coerce(float),vol.Range(min=0,max=1))}),
+        'notify_clear':vol.Schema({**pid_schema,vol.Optional('id'):str}),
+        'notify':vol.Schema({**pid_schema,vol.Optional('title'):str,vol.Optional('message'):str,vol.Optional('level'):vol.In(['info','success','warning','error']),
+            vol.Optional('priority'):vol.In(['normal','high']),vol.Optional('icon'):str,vol.Optional('image'):str,vol.Optional('sound'):str,vol.Optional('speak'):str,
+            vol.Optional('actions'):list,vol.Optional('timeout'):vol.All(vol.Coerce(int),vol.Range(min=0,max=86400)),
+            vol.Optional('timeoutS'):vol.All(vol.Coerce(int),vol.Range(min=0,max=86400)),vol.Optional('id'):str}),
+    }
+    for name in SERVICES:
+        response=SupportsResponse.OPTIONAL if name=='ping' else SupportsResponse.NONE
+        hass.services.async_register(DOMAIN,name,handle,schema=schemas.get(name,vol.Schema(pid_schema,extra=vol.ALLOW_EXTRA)),supports_response=response)
+    async def handle_discover(call):
+        try:result=await hass.data[DOMAIN]['hub'].discover(call.data.get('timeout',2))
+        except ValueError as err:raise HomeAssistantError(translation_domain=DOMAIN,translation_key='panel_command_failed',translation_placeholders={'error':plain(err)}) from err
+        return result if call.return_response else None
+    hass.services.async_register(DOMAIN,'discover',handle_discover,schema=vol.Schema({vol.Optional('timeout',default=2):vol.All(vol.Coerce(float),vol.Range(min=1,max=10))}),supports_response=SupportsResponse.OPTIONAL)
     from .adb import SERVICE_OPERATIONS,async_service
     async def handle_adb(call):
         hub=hass.data[DOMAIN]['hub']

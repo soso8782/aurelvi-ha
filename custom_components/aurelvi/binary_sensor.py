@@ -16,4 +16,10 @@ class PanelMotion(AurelviEntity,BinarySensorEntity):
     def available(self):return super().available and self.hub.status.get(self.pid,{}).get('info',{}).get('sensors',{}).get('hasProximity',False)
     @property
     def is_on(self):return self.status.get('motion',{}).get('motion',False)
-async def async_setup_entry(hass,entry,async_add_entities):await add_dynamic(hass,entry,async_add_entities,lambda h,p:[PanelOnline(h,p),PanelMotion(h,p)])
+class PanelAwake(AurelviEntity,BinarySensorEntity):
+    def __init__(self,h,p):super().__init__(h,p,'awake','Awake')
+    @property
+    def available(self):return super().available and 'awake' in self.status
+    @property
+    def is_on(self):return bool(self.status.get('awake',{}).get('awake'))
+async def async_setup_entry(hass,entry,async_add_entities):await add_dynamic(hass,entry,async_add_entities,lambda h,p:[PanelOnline(h,p),PanelMotion(h,p),PanelAwake(h,p)])
